@@ -3,10 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111111" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
   <title>S.S. Engineers Invoice Generator</title>
 
  <Link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json" />
 </head>
 
 <body>
@@ -61,6 +66,7 @@
         <button type="button" class="btn-primary" onclick="generateInvoice()">Generate Invoice</button>
         <button type="button" class="btn-print" onclick="printInvoice()">Print / Save PDF</button>
         <button type="button" class="btn-whatsapp" onclick="shareOnWhatsApp()">Share on WhatsApp</button>
+        <button type="button" id="installBtn" class="btn-secondary" style="display:none;">Install App</button>
       </div>
 
       <div id="errorBox" class="error-text"></div>

@@ -7,8 +7,75 @@ var items = [
     }
   ];
 
+  // PWA install prompt support (Android Chrome)
+  var deferredInstallPromptEvent = null;
+  var installButton = null;
+
   function getElement(id) {
     return document.getElementById(id);
+  }
+
+  function isAppInStandaloneMode() {
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+      (window.navigator && window.navigator.standalone === true);
+  }
+
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) {
+      return;
+    }
+
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("service-worker.js")
+        .catch(function () {
+          // Ignore registration errors to avoid breaking the app
+        });
+    });
+  }
+
+  function setupInstallPrompt() {
+    installButton = getElement("installBtn");
+
+    if (!installButton) {
+      return;
+    }
+
+    // Hide if already installed / running standalone
+    if (isAppInStandaloneMode()) {
+      installButton.style.display = "none";
+      return;
+    }
+
+    installButton.addEventListener("click", function () {
+      if (!deferredInstallPromptEvent) {
+        return;
+      }
+
+      deferredInstallPromptEvent.prompt();
+
+      deferredInstallPromptEvent.userChoice
+        .then(function () {
+          deferredInstallPromptEvent = null;
+          installButton.style.display = "none";
+        })
+        .catch(function () {
+          deferredInstallPromptEvent = null;
+        });
+    });
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      // Prevent Chrome from showing the mini-infobar
+      e.preventDefault();
+      deferredInstallPromptEvent = e;
+
+      // Show your custom install button
+      installButton.style.display = "inline-block";
+    });
+
+    window.addEventListener("appinstalled", function () {
+      deferredInstallPromptEvent = null;
+      installButton.style.display = "none";
+    });
   }
 
   function safeText(value) {
@@ -418,6 +485,7 @@ var items = [
   }
 
   window.onload = function () {
+    registerServiceWorker();
     renderItemInputs();
     generateInvoice(false);
 
@@ -436,4 +504,6 @@ var items = [
     getElement("poDate").oninput = function () {
       generateInvoice(false);
     };
+
+    setupInstallPrompt();
   };
