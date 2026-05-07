@@ -115,6 +115,11 @@
     color: #fff;
   }
 
+  .btn-whatsapp {
+    background: #25d366;
+    color: #fff;
+  }
+
   .error-text {
     color: #c62828;
     text-align: center;
@@ -444,5 +449,61 @@
 
     .invoice-wrapper {
       justify-content: flex-start;
+    }
+
+    .items-form-table {
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .items-form-table thead {
+      display: none;
+    }
+
+    .items-form-table,
+    .items-form-table tbody,
+    .items-form-table tr,
+    .items-form-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .items-form-table tr {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fafafa;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .items-form-table td {
+      border: none;
+      border-bottom: 1px solid #e4e4e4;
+      text-align: left;
+      padding: 8px 10px;
+    }
+
+    .items-form-table td:last-child {
+      border-bottom: none;
+    }
+
+    .items-form-table td::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 12px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .items-form-table .row-amount {
+      font-weight: bold;
+      font-size: 15px;
+    }
+
+    .items-form-table .btn-danger {
+      width: 100%;
+      padding: 10px 12px;
     }
   }

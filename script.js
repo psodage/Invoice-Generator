@@ -77,25 +77,25 @@ var items = [
       var row = document.createElement("tr");
 
       row.innerHTML =
-        '<td>' +
+        '<td data-label="Product Name">' +
           '<input type="text" placeholder="Enter product name" value="' + safeText(item.productName) + '" oninput="updateItemNoRender(' + i + ', \'productName\', this.value, this)" />' +
         '</td>' +
 
-        '<td>' +
+        '<td data-label="SAC">' +
           '<input type="text" placeholder="Enter SAC" value="' + safeText(item.sac) + '" oninput="updateItemNoRender(' + i + ', \'sac\', this.value, this)" />' +
         '</td>' +
 
-        '<td>' +
-          '<input type="number" min="0" step="1" placeholder="Qty" value="' + safeText(item.qty) + '" oninput="updateItemNoRender(' + i + ', \'qty\', this.value, this)" />' +
+        '<td data-label="Qty">' +
+          '<input type="number" min="0" step="1" inputmode="numeric" placeholder="Qty" value="' + safeText(item.qty) + '" oninput="updateItemNoRender(' + i + ', \'qty\', this.value, this)" />' +
         '</td>' +
 
-        '<td>' +
-          '<input type="number" min="0" step="0.01" placeholder="Rate" value="' + safeText(item.rate) + '" oninput="updateItemNoRender(' + i + ', \'rate\', this.value, this)" />' +
+        '<td data-label="Rate">' +
+          '<input type="number" min="0" step="0.01" inputmode="decimal" placeholder="Rate" value="' + safeText(item.rate) + '" oninput="updateItemNoRender(' + i + ', \'rate\', this.value, this)" />' +
         '</td>' +
 
-        '<td class="row-amount">' + formatAmount(amount) + '</td>' +
+        '<td data-label="Amount" class="row-amount">' + formatAmount(amount) + '</td>' +
 
-        '<td>' +
+        '<td data-label="Action">' +
           '<button type="button" class="btn-danger" onclick="removeItem(' + i + ')">Remove</button>' +
         '</td>';
 
@@ -291,6 +291,34 @@ var items = [
     setTimeout(function () {
       window.print();
     }, 300);
+  }
+
+  function shareOnWhatsApp() {
+    generateInvoice(true);
+
+    if (getElement("errorBox").innerText.trim() !== "") {
+      return;
+    }
+
+    var invoiceNo = getElement("invoiceNo").value.trim() || "-";
+    var invoiceDate = formatDate(getElement("invoiceDate").value) || "-";
+    var poNo = getElement("poNo").value.trim() || "-";
+    var poDate = formatDate(getElement("poDate").value) || "-";
+    var totalAmount = getElement("previewTotal").innerText.trim() || formatAmount(0);
+
+    var messageLines = [
+      "*S.S. ENGINEERS - TAX INVOICE*",
+      "Invoice No: " + invoiceNo,
+      "Invoice Date: " + invoiceDate,
+      "PO No: " + poNo,
+      "PO Date: " + poDate,
+      "Total Amount: " + totalAmount
+    ];
+
+    var message = encodeURIComponent(messageLines.join("\n"));
+    var whatsappUrl = "https://wa.me/?text=" + message;
+
+    window.open(whatsappUrl, "_blank");
   }
 
   function numberToWords(num) {
