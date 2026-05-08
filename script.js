@@ -367,25 +367,75 @@ var items = [
       return;
     }
 
-    var invoiceNo = getElement("invoiceNo").value.trim() || "-";
-    var invoiceDate = formatDate(getElement("invoiceDate").value) || "-";
-    var poNo = getElement("poNo").value.trim() || "-";
-    var poDate = formatDate(getElement("poDate").value) || "-";
-    var totalAmount = getElement("previewTotal").innerText.trim() || formatAmount(0);
+    var invoiceNo = getElement("invoiceNo").value.trim() || "Invoice";
+    var invoiceDate = formatDate(getElement("invoiceDate").value) || new Date().toLocaleDateString();
+    var fileName = "S.S.Engineers_Invoice_" + invoiceNo + "_" + invoiceDate.replace(/\//g, "-") + ".pdf";
 
-    var messageLines = [
-      "*S.S. ENGINEERS - TAX INVOICE*",
-      "Invoice No: " + invoiceNo,
-      "Invoice Date: " + invoiceDate,
-      "PO No: " + poNo,
-      "PO Date: " + poDate,
-      "Total Amount: " + totalAmount
-    ];
+    // Get the invoice element
+    var invoiceElement = getElement("invoice");
 
-    var message = encodeURIComponent(messageLines.join("\n"));
-    var whatsappUrl = "https://wa.me/?text=" + message;
+    // Configure html2pdf options
+    var options = {
+      margin: 5,
+      filename: fileName,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: "portrait", unit: "mm", format: "a4" }
+    };
 
-    window.open(whatsappUrl, "_blank");
+    // Generate PDF
+    html2pdf()
+      .set(options)
+      .from(invoiceElement)
+      .toPdf()
+      .output("blob")
+      .then(function(pdfBlob) {
+        // Create a File object from the blob
+        var pdfFile = new File([pdfBlob], fileName, { type: "application/pdf" });
+
+        // Check if Web Share API is available
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          // Use Web Share API to share the PDF
+          navigator.share({
+            files: [pdfFile],
+            title: "S.S. Engineers Invoice",
+            text: "Invoice No: " + invoiceNo + "\nInvoice Date: " + invoiceDate
+          })
+          .catch(function(err) {
+            // User cancelled or share failed, fallback to download
+            if (err.name !== "AbortError") {
+              console.log("Share failed:", err);
+              downloadPDF(pdfBlob, fileName);
+            }
+          });
+        } else {
+          // Fallback: Download the PDF if Web Share API is not available
+          downloadPDF(pdfBlob, fileName);
+        }
+      })
+      .catch(function(err) {
+        console.error("PDF generation error:", err);
+        showError("Failed to generate PDF. Please try again.");
+      });
+  }
+
+  function downloadPDF(blob, fileName) {
+    // Create a download link for the PDF
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function showError(message) {
+    var errorBox = getElement("errorBox");
+    if (errorBox) {
+      errorBox.innerText = message;
+    }
   }
 
   function numberToWords(num) {
