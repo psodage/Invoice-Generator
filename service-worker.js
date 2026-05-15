@@ -1,6 +1,6 @@
 /* PWA Service Worker - Invoice Generator */
 
-var CACHE_VERSION = "v1.0.0";
+var CACHE_VERSION = "v1.0.2";
 var STATIC_CACHE = "static-" + CACHE_VERSION;
 var RUNTIME_CACHE = "runtime-" + CACHE_VERSION;
 

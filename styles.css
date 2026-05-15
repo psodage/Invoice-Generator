@@ -429,81 +429,52 @@
     }
   }
 
-  @media (max-width: 768px) {
-    .app-container {
-      margin: 10px auto;
-      padding: 10px;
-    }
+  /* PDF export (WhatsApp share) — match @media print layout, not on-screen preview */
+  .pdf-export-root {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: 794px;
+    background: #fff;
+    z-index: -1;
+  }
 
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
+  .pdf-export-root .invoice-page {
+    width: 794px;
+    min-width: 794px;
+    max-width: 794px;
+    padding: 30px;
+    margin: 0;
+    box-shadow: none;
+    background: #fff;
+    font-size: 14px;
+    color: #111;
+  }
 
-    .btn-group {
-      flex-direction: column;
-    }
+  .pdf-export-root .blank-space {
+    height: 20px;
+  }
 
-    .btn-group button {
-      width: 100%;
-    }
+  .pdf-export-root .bottom-left,
+  .pdf-export-root .bottom-right {
+    min-height: 135px;
+  }
 
-    .invoice-wrapper {
-      justify-content: flex-start;
-    }
+  .pdf-export-root .amount-words {
+    min-height: 55px;
+  }
 
-    .items-form-table {
-      min-width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-    }
+  .pdf-export-root .bank-details {
+    min-height: 58px;
+  }
 
-    .items-form-table thead {
-      display: none;
-    }
+  .pdf-export-root .terms {
+    min-height: 50px;
+  }
 
-    .items-form-table,
-    .items-form-table tbody,
-    .items-form-table tr,
-    .items-form-table td {
-      display: block;
-      width: 100%;
-    }
-
-    .items-form-table tr {
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: #fafafa;
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-
-    .items-form-table td {
-      border: none;
-      border-bottom: 1px solid #e4e4e4;
-      text-align: left;
-      padding: 8px 10px;
-    }
-
-    .items-form-table td:last-child {
-      border-bottom: none;
-    }
-
-    .items-form-table td::before {
-      content: attr(data-label);
-      display: block;
-      font-size: 12px;
-      font-weight: bold;
-      color: #555;
-      margin-bottom: 6px;
-    }
-
-    .items-form-table .row-amount {
-      font-weight: bold;
-      font-size: 15px;
-    }
-
-    .items-form-table .btn-danger {
-      width: 100%;
-      padding: 10px 12px;
-    }
+  .pdf-export-root .invoice-table,
+  .pdf-export-root .items-table,
+  .pdf-export-root .bottom-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }

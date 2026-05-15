@@ -360,6 +360,72 @@ var items = [
     }, 300);
   }
 
+  function createPdfExportElement() {
+    var source = getElement("invoice");
+    var root = document.createElement("div");
+    var page = source.cloneNode(true);
+
+    root.className = "pdf-export-root";
+    page.removeAttribute("id");
+    root.appendChild(page);
+    document.body.appendChild(root);
+
+    return { root: root, page: page };
+  }
+
+  function destroyPdfExportElement(exportEl) {
+    if (exportEl && exportEl.root && exportEl.root.parentNode) {
+      exportEl.root.parentNode.removeChild(exportEl.root);
+    }
+  }
+
+  function buildInvoicePdfOptions(fileName) {
+    return {
+      margin: 0,
+      filename: fileName,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        backgroundColor: "#ffffff"
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait",
+        compress: true
+      },
+      pagebreak: { mode: ["avoid-all", "css", "legacy"] }
+    };
+  }
+
+  function generateInvoicePdfBlob(fileName) {
+    var exportEl = createPdfExportElement();
+
+    return new Promise(function (resolve, reject) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          html2pdf()
+            .set(buildInvoicePdfOptions(fileName))
+            .from(exportEl.page)
+            .toPdf()
+            .output("blob")
+            .then(function (blob) {
+              destroyPdfExportElement(exportEl);
+              resolve(blob);
+            })
+            .catch(function (err) {
+              destroyPdfExportElement(exportEl);
+              reject(err);
+            });
+        });
+      });
+    });
+  }
+
   function shareOnWhatsApp() {
     generateInvoice(true);
 
@@ -371,49 +437,27 @@ var items = [
     var invoiceDate = formatDate(getElement("invoiceDate").value) || new Date().toLocaleDateString();
     var fileName = "S.S.Engineers_Invoice_" + invoiceNo + "_" + invoiceDate.replace(/\//g, "-") + ".pdf";
 
-    // Get the invoice element
-    var invoiceElement = getElement("invoice");
-
-    // Configure html2pdf options
-    var options = {
-      margin: 5,
-      filename: fileName,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: "portrait", unit: "mm", format: "a4" }
-    };
-
-    // Generate PDF
-    html2pdf()
-      .set(options)
-      .from(invoiceElement)
-      .toPdf()
-      .output("blob")
-      .then(function(pdfBlob) {
-        // Create a File object from the blob
+    generateInvoicePdfBlob(fileName)
+      .then(function (pdfBlob) {
         var pdfFile = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-        // Check if Web Share API is available
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          // Use Web Share API to share the PDF
           navigator.share({
             files: [pdfFile],
             title: "S.S. Engineers Invoice",
             text: "Invoice No: " + invoiceNo + "\nInvoice Date: " + invoiceDate
           })
-          .catch(function(err) {
-            // User cancelled or share failed, fallback to download
-            if (err.name !== "AbortError") {
-              console.log("Share failed:", err);
-              downloadPDF(pdfBlob, fileName);
-            }
-          });
+            .catch(function (err) {
+              if (err.name !== "AbortError") {
+                console.log("Share failed:", err);
+                downloadPDF(pdfBlob, fileName);
+              }
+            });
         } else {
-          // Fallback: Download the PDF if Web Share API is not available
           downloadPDF(pdfBlob, fileName);
         }
       })
-      .catch(function(err) {
+      .catch(function (err) {
         console.error("PDF generation error:", err);
         showError("Failed to generate PDF. Please try again.");
       });
