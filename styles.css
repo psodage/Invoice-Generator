@@ -478,3 +478,371 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  /* ── Mobile step wizard ── */
+
+  .mobile-stepper,
+  .mobile-nav,
+  .step-heading,
+  .step-hint,
+  .add-product-row,
+  .btn-group-step3 {
+    display: none;
+  }
+
+  .form-step {
+    display: block;
+  }
+
+  @media (max-width: 768px) {
+    .app-container {
+      margin: 0;
+      padding: 10px;
+      padding-bottom: 80px;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    .form-section {
+      padding: 16px;
+      border-radius: 0;
+      margin-bottom: 10px;
+    }
+
+    .form-section h2 {
+      font-size: 1.25rem;
+    }
+
+    .mobile-stepper {
+      display: block;
+      margin-bottom: 20px;
+    }
+
+    .stepper-track {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .stepper-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .stepper-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #e0e0e0;
+      color: #666;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .stepper-step.active .stepper-dot,
+    .stepper-step.completed .stepper-dot {
+      background: #111;
+      color: #fff;
+    }
+
+    .stepper-label {
+      font-size: 11px;
+      color: #666;
+      font-weight: 600;
+    }
+
+    .stepper-step.active .stepper-label {
+      color: #111;
+    }
+
+    .stepper-line {
+      flex: 1;
+      height: 2px;
+      background: #e0e0e0;
+      min-width: 24px;
+      max-width: 48px;
+      margin: 0 4px;
+      margin-bottom: 18px;
+    }
+
+    .form-step {
+      display: none;
+    }
+
+    .form-step.active {
+      display: block;
+    }
+
+    .step-heading {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 1.1rem;
+    }
+
+    .step-hint {
+      display: block;
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    .form-grid {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .form-group input {
+      font-size: 16px;
+      padding: 12px;
+    }
+
+    label {
+      font-size: 13px;
+      color: #333;
+    }
+
+    .items-scroll {
+      overflow-x: visible;
+    }
+
+    .items-form-table {
+      min-width: 0;
+      border: none;
+    }
+
+    .items-form-table tbody {
+      counter-reset: product-row;
+    }
+
+    .items-form-table thead {
+      display: none;
+    }
+
+    .items-form-table tbody tr {
+      counter-increment: product-row;
+      display: block;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .items-form-table tbody tr::before {
+      content: "Product " counter(product-row);
+      display: block;
+      font-weight: bold;
+      font-size: 14px;
+      color: #111;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .items-form-table tbody td {
+      display: block;
+      border: none;
+      padding: 0 0 10px;
+      text-align: left;
+    }
+
+    .items-form-table tbody td:last-child {
+      padding-bottom: 0;
+    }
+
+    .items-form-table tbody td::before {
+      content: attr(data-label);
+      display: block;
+      font-weight: bold;
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .items-form-table tbody td[data-label="Amount"]::before {
+      content: "Amount (auto-calculated)";
+    }
+
+    .items-form-table tbody td[data-label="Amount"] {
+      font-weight: bold;
+      font-size: 15px;
+      padding-top: 4px;
+    }
+
+    .items-form-table tbody td[data-label="Action"]::before {
+      display: none;
+    }
+
+    .items-form-table tbody td[data-label="Action"] {
+      padding-top: 8px;
+      border-top: 1px solid #e0e0e0;
+      margin-top: 4px;
+    }
+
+    .items-form-table .btn-danger {
+      width: 100%;
+      padding: 10px;
+    }
+
+    .items-form-table input {
+      font-size: 16px;
+      padding: 10px;
+    }
+
+    .add-product-row {
+      display: block;
+      margin-top: 4px;
+    }
+
+    .btn-full-mobile {
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    .btn-group-step3 {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 0;
+    }
+
+    .btn-group-step3 button {
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    .desktop-actions {
+      display: none;
+    }
+
+    .mobile-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      padding: 12px 16px;
+      gap: 10px;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+    }
+
+    .mobile-nav-btn {
+      flex: 1;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    #prevStepBtn {
+      flex: 0.4;
+    }
+
+    #prevStepBtn.hidden {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .invoice-wrapper {
+      display: none;
+      width: 100%;
+      max-width: 100%;
+      padding: 0;
+    }
+
+    .invoice-wrapper.mobile-visible {
+      display: block;
+    }
+
+    .mobile-swipe-hint {
+      display: block;
+      font-size: 12px;
+      color: #555;
+      text-align: center;
+      margin: -4px 0 12px;
+      padding: 8px 12px;
+      background: #f0f4ff;
+      border-radius: 6px;
+      line-height: 1.4;
+    }
+
+    .invoice-mobile-viewport {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      touch-action: pan-x pan-y;
+    }
+
+    .invoice-mobile-viewport::-webkit-scrollbar {
+      display: none;
+    }
+
+    .invoice-scale-inner {
+      width: max-content;
+      min-width: 100%;
+      overflow: visible;
+    }
+
+    .invoice-wrapper.mobile-visible .invoice-page {
+      width: 794px;
+      min-width: 794px;
+      max-width: none;
+      transform: none;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .form-step[data-step="3"] {
+      display: none !important;
+    }
+
+    .form-step[data-step="1"] .step-heading,
+    .form-step[data-step="1"] .step-hint {
+      display: none;
+    }
+
+    .form-step[data-step="2"] .step-heading {
+      display: block;
+      margin-top: 0;
+      font-size: 1.17em;
+    }
+
+    .form-step[data-step="2"] .step-hint {
+      display: none;
+    }
+
+    .add-product-row {
+      display: none;
+    }
+
+    .form-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .form-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }

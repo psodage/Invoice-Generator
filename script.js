@@ -9,7 +9,12 @@ var items = [
 
   // PWA install prompt support (Android Chrome)
   var deferredInstallPromptEvent = null;
-  var installButton = null;
+  var installButtons = [];
+
+  // Mobile wizard state
+  var currentStep = 1;
+  var totalSteps = 3;
+  var mobileWizardActive = false;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -34,19 +39,36 @@ var items = [
   }
 
   function setupInstallPrompt() {
-    installButton = getElement("installBtn");
+    installButtons = [
+      getElement("installBtn"),
+      getElement("installBtnDesktop")
+    ].filter(function (btn) {
+      return btn !== null;
+    });
 
-    if (!installButton) {
+    if (installButtons.length === 0) {
       return;
+    }
+
+    function hideInstallButtons() {
+      for (var i = 0; i < installButtons.length; i++) {
+        installButtons[i].style.display = "none";
+      }
+    }
+
+    function showInstallButtons() {
+      for (var i = 0; i < installButtons.length; i++) {
+        installButtons[i].style.display = "inline-block";
+      }
     }
 
     // Hide if already installed / running standalone
     if (isAppInStandaloneMode()) {
-      installButton.style.display = "none";
+      hideInstallButtons();
       return;
     }
 
-    installButton.addEventListener("click", function () {
+    function handleInstallClick() {
       if (!deferredInstallPromptEvent) {
         return;
       }
@@ -56,26 +78,181 @@ var items = [
       deferredInstallPromptEvent.userChoice
         .then(function () {
           deferredInstallPromptEvent = null;
-          installButton.style.display = "none";
+          hideInstallButtons();
         })
         .catch(function () {
           deferredInstallPromptEvent = null;
         });
-    });
+    }
+
+    for (var j = 0; j < installButtons.length; j++) {
+      installButtons[j].addEventListener("click", handleInstallClick);
+    }
 
     window.addEventListener("beforeinstallprompt", function (e) {
-      // Prevent Chrome from showing the mini-infobar
       e.preventDefault();
       deferredInstallPromptEvent = e;
-
-      // Show your custom install button
-      installButton.style.display = "inline-block";
+      showInstallButtons();
     });
 
     window.addEventListener("appinstalled", function () {
       deferredInstallPromptEvent = null;
-      installButton.style.display = "none";
+      hideInstallButtons();
     });
+  }
+
+  function isMobileWizard() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  function resetMobileInvoiceScale() {
+    var page = getElement("invoice");
+    var viewport = getElement("invoiceMobileViewport");
+    var inner = getElement("invoiceScaleInner");
+
+    if (page) {
+      page.style.transform = "";
+      page.style.transformOrigin = "";
+      page.style.width = "";
+      page.style.position = "";
+    }
+
+    if (inner) {
+      inner.style.width = "";
+      inner.style.height = "";
+    }
+
+    if (viewport) {
+      viewport.style.height = "";
+      viewport.scrollLeft = 0;
+    }
+  }
+
+  function updateMobileInvoiceScale() {
+    var wrapper = document.querySelector(".invoice-wrapper");
+    var viewport = getElement("invoiceMobileViewport");
+    var page = getElement("invoice");
+
+    if (!wrapper || !viewport || !page) {
+      return;
+    }
+
+    if (!wrapper.classList.contains("mobile-visible")) {
+      resetMobileInvoiceScale();
+      return;
+    }
+
+    resetMobileInvoiceScale();
+    viewport.scrollLeft = 0;
+  }
+
+  function updateMobileWizardLayout() {
+    mobileWizardActive = isMobileWizard();
+    var invoiceWrapper = document.querySelector(".invoice-wrapper");
+
+    if (!mobileWizardActive) {
+      if (invoiceWrapper) {
+        invoiceWrapper.classList.remove("mobile-visible");
+      }
+      resetMobileInvoiceScale();
+      currentStep = 1;
+      return;
+    }
+
+    goToStep(currentStep, false);
+  }
+
+  function updateStepperUI() {
+    var steps = document.querySelectorAll(".stepper-step");
+
+    for (var i = 0; i < steps.length; i++) {
+      var stepNum = parseInt(steps[i].getAttribute("data-step"), 10);
+      steps[i].classList.remove("active", "completed");
+
+      if (stepNum === currentStep) {
+        steps[i].classList.add("active");
+      } else if (stepNum < currentStep) {
+        steps[i].classList.add("completed");
+      }
+    }
+
+    var prevBtn = getElement("prevStepBtn");
+    var nextBtn = getElement("nextStepBtn");
+
+    if (prevBtn) {
+      prevBtn.classList.toggle("hidden", currentStep === 1);
+    }
+
+    if (nextBtn) {
+      nextBtn.style.display = currentStep === totalSteps ? "none" : "block";
+    }
+  }
+
+  function goToStep(step, scrollToTop) {
+    if (scrollToTop === undefined) {
+      scrollToTop = true;
+    }
+
+    currentStep = Math.max(1, Math.min(totalSteps, step));
+
+    var formSteps = document.querySelectorAll(".form-step");
+    for (var i = 0; i < formSteps.length; i++) {
+      var stepNum = parseInt(formSteps[i].getAttribute("data-step"), 10);
+      formSteps[i].classList.toggle("active", stepNum === currentStep);
+    }
+
+    var invoiceWrapper = document.querySelector(".invoice-wrapper");
+
+    if (invoiceWrapper) {
+      if (mobileWizardActive && currentStep === totalSteps) {
+        invoiceWrapper.classList.add("mobile-visible");
+        generateInvoice(false);
+        setTimeout(updateMobileInvoiceScale, 50);
+      } else if (mobileWizardActive) {
+        invoiceWrapper.classList.remove("mobile-visible");
+        resetMobileInvoiceScale();
+      }
+    }
+
+    updateStepperUI();
+
+    if (scrollToTop) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function validateStep(step) {
+    var errorBox = getElement("errorBox");
+    errorBox.innerText = "";
+
+    if (step === 2) {
+      return validateItems();
+    }
+
+    return true;
+  }
+
+  function nextStep() {
+    if (!mobileWizardActive) {
+      return;
+    }
+
+    if (!validateStep(currentStep)) {
+      return;
+    }
+
+    if (currentStep < totalSteps) {
+      goToStep(currentStep + 1);
+    }
+  }
+
+  function prevStep() {
+    if (!mobileWizardActive || currentStep <= 1) {
+      return;
+    }
+
+    getElement("errorBox").innerText = "";
+    goToStep(currentStep - 1);
   }
 
   function safeText(value) {
@@ -334,10 +511,21 @@ var items = [
     getElement("previewTotal").innerText = formatAmount(total);
     getElement("beforeTax").innerText = formatAmount(total);
     getElement("amountWords").innerText = numberToWords(total) + " only.";
+
+    if (isMobileWizard()) {
+      setTimeout(updateMobileInvoiceScale, 50);
+    }
   }
 
   function printInvoice() {
     generateInvoice(true);
+
+    if (getElement("errorBox").innerText.trim() !== "") {
+      return;
+    }
+
+    var needsMobileRestore = document.querySelector(".invoice-wrapper.mobile-visible") !== null;
+    resetMobileInvoiceScale();
 
     var invoiceDate = getElement("invoiceDate").value;
     var invoiceNo = getElement("invoiceNo").value;
@@ -355,6 +543,17 @@ var items = [
 
     document.title = titleParts.join(" ");
 
+    function restoreMobilePreview() {
+      if (needsMobileRestore) {
+        updateMobileInvoiceScale();
+      }
+    }
+
+    window.addEventListener("afterprint", function onAfterPrint() {
+      window.removeEventListener("afterprint", onAfterPrint);
+      restoreMobilePreview();
+    });
+
     setTimeout(function () {
       window.print();
     }, 300);
@@ -367,6 +566,7 @@ var items = [
 
     root.className = "pdf-export-root";
     page.removeAttribute("id");
+    page.removeAttribute("style");
     root.appendChild(page);
     document.body.appendChild(root);
 
@@ -600,4 +800,10 @@ var items = [
     };
 
     setupInstallPrompt();
+    updateMobileWizardLayout();
+
+    window.addEventListener("resize", function () {
+      updateMobileWizardLayout();
+      updateMobileInvoiceScale();
+    });
   };

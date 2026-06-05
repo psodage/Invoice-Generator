@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=1280, initial-scale=1.0, user-scalable=yes" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <meta name="theme-color" content="#111111" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -10,7 +10,7 @@
 
   <title>S.S. Engineers Invoice Generator</title>
 
- <Link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.json" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -21,60 +21,111 @@
     <div class="form-section">
       <h2>S.S. Engineers Invoice Generator</h2>
 
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Invoice No.</label>
-          <input type="text" id="invoiceNo" placeholder="Enter invoice number" />
-        </div>
-
-        <div class="form-group">
-          <label>Invoice Date</label>
-          <input type="date" id="invoiceDate" />
-        </div>
-
-        <div class="form-group">
-          <label>PO No.</label>
-          <input type="text" id="poNo" placeholder="Enter PO number" />
-        </div>
-
-        <div class="form-group">
-          <label>PO Date</label>
-          <input type="date" id="poDate" />
+      <div class="mobile-stepper" id="mobileStepper" aria-hidden="true">
+        <div class="stepper-track">
+          <div class="stepper-step active" data-step="1">
+            <span class="stepper-dot">1</span>
+            <span class="stepper-label">Invoice</span>
+          </div>
+          <div class="stepper-line"></div>
+          <div class="stepper-step" data-step="2">
+            <span class="stepper-dot">2</span>
+            <span class="stepper-label">Products</span>
+          </div>
+          <div class="stepper-line"></div>
+          <div class="stepper-step" data-step="3">
+            <span class="stepper-dot">3</span>
+            <span class="stepper-label">Preview</span>
+          </div>
         </div>
       </div>
 
-      <h3>Product Details</h3>
+      <div class="form-step active" data-step="1">
+        <h3 class="step-heading">Invoice Details</h3>
+        <p class="step-hint">Enter the invoice and purchase order information.</p>
 
-      <div class="items-scroll">
-        <table class="items-form-table">
-          <thead>
-            <tr>
-              <th>Product Name</th>
-              <th>SAC</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="invoiceNo">Invoice No.</label>
+            <input type="text" id="invoiceNo" placeholder="Enter invoice number" />
+          </div>
 
-          <tbody id="itemsInputBody"></tbody>
-        </table>
+          <div class="form-group">
+            <label for="invoiceDate">Invoice Date</label>
+            <input type="date" id="invoiceDate" />
+          </div>
+
+          <div class="form-group">
+            <label for="poNo">PO No.</label>
+            <input type="text" id="poNo" placeholder="Enter PO number" />
+          </div>
+
+          <div class="form-group">
+            <label for="poDate">PO Date</label>
+            <input type="date" id="poDate" />
+          </div>
+        </div>
       </div>
 
-      <div class="btn-group">
+      <div class="form-step" data-step="2">
+        <h3 class="step-heading">Product Details</h3>
+        <p class="step-hint">Add each product or service line for this invoice.</p>
+
+        <div class="items-scroll">
+          <table class="items-form-table">
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>SAC</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="itemsInputBody"></tbody>
+          </table>
+        </div>
+
+        <div class="add-product-row">
+          <button type="button" class="btn-secondary btn-full-mobile" onclick="addItem()">+ Add Product</button>
+        </div>
+      </div>
+
+      <div class="form-step" data-step="3">
+        <h3 class="step-heading">Preview &amp; Export</h3>
+        <p class="step-hint">Review your invoice below, then print or share it.</p>
+        <p class="mobile-swipe-hint visible" id="mobileSwipeHint">Swipe left or right to view the full-size invoice (same as PDF).</p>
+
+        <div class="btn-group btn-group-step3">
+          <button type="button" class="btn-primary" onclick="generateInvoice()">Update Preview</button>
+          <button type="button" class="btn-print" onclick="printInvoice()">Print / Save PDF</button>
+          <button type="button" class="btn-whatsapp" onclick="shareOnWhatsApp()">Share on WhatsApp</button>
+          <button type="button" id="installBtn" class="btn-secondary" style="display:none;">Install App</button>
+        </div>
+      </div>
+
+      <div class="mobile-nav" id="mobileNav">
+        <button type="button" class="btn-secondary mobile-nav-btn" id="prevStepBtn" onclick="prevStep()">Back</button>
+        <button type="button" class="btn-primary mobile-nav-btn" id="nextStepBtn" onclick="nextStep()">Next</button>
+      </div>
+
+      <div class="btn-group desktop-actions">
         <button type="button" class="btn-secondary" onclick="addItem()">Add Product Row</button>
         <button type="button" class="btn-primary" onclick="generateInvoice()">Generate Invoice</button>
         <button type="button" class="btn-print" onclick="printInvoice()">Print / Save PDF</button>
         <button type="button" class="btn-whatsapp" onclick="shareOnWhatsApp()">Share on WhatsApp</button>
-        <button type="button" id="installBtn" class="btn-secondary" style="display:none;">Install App</button>
+        <button type="button" id="installBtnDesktop" class="btn-secondary" style="display:none;">Install App</button>
       </div>
 
       <div id="errorBox" class="error-text"></div>
     </div>
 
     <div class="invoice-wrapper">
-      <div class="invoice-page" id="invoice">
+      <div class="invoice-mobile-viewport" id="invoiceMobileViewport">
+        <div class="invoice-scale-inner" id="invoiceScaleInner">
+          <div class="invoice-page" id="invoice">
 
         <h1 class="company-title">S.S. ENGINEERS</h1>
 
@@ -287,6 +338,8 @@
           </div>
         </div>
 
+          </div>
+        </div>
       </div>
     </div>
 
