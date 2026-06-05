@@ -61,28 +61,33 @@
 
         <div class="form-grid">
           <div class="form-group">
-            <label for="invoiceNo">Invoice No.</label>
-            <input type="text" id="invoiceNo" placeholder="Enter invoice number" />
+            <label for="invoiceNo">Invoice No. <span class="required-mark">*</span></label>
+            <input type="text" id="invoiceNo" placeholder="Enter invoice number" maxlength="50" autocomplete="off" />
+            <span class="field-error" id="invoiceNoError" role="alert"></span>
           </div>
 
           <div class="form-group">
-            <label for="invoiceDate">Invoice Date</label>
+            <label for="invoiceDate">Invoice Date <span class="required-mark">*</span></label>
             <input type="date" id="invoiceDate" />
+            <span class="field-error" id="invoiceDateError" role="alert"></span>
           </div>
 
           <div class="form-group">
-            <label for="poNo">PO No.</label>
-            <input type="text" id="poNo" placeholder="Enter PO number" />
+            <label for="poNo">PO No. <span class="required-mark">*</span></label>
+            <input type="text" id="poNo" placeholder="Enter PO number" maxlength="50" autocomplete="off" />
+            <span class="field-error" id="poNoError" role="alert"></span>
           </div>
 
           <div class="form-group">
-            <label for="poDate">PO Date</label>
+            <label for="poDate">PO Date <span class="required-mark">*</span></label>
             <input type="date" id="poDate" />
+            <span class="field-error" id="poDateError" role="alert"></span>
           </div>
 
           <div class="form-group">
-            <label for="productCount">Number of Products</label>
+            <label for="productCount">Number of Products <span class="required-mark">*</span></label>
             <input type="number" id="productCount" min="1" max="50" step="1" inputmode="numeric" value="1" placeholder="How many products?" />
+            <span class="field-error" id="productCountError" role="alert"></span>
           </div>
         </div>
       </div>

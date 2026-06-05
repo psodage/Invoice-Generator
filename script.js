@@ -579,37 +579,65 @@ var items = [
 
     container.innerHTML =
       '<div class="form-group">' +
-        '<label for="mobileProductName">Product Name</label>' +
-        '<input type="text" id="mobileProductName" placeholder="Enter product name" value="' + safeText(item.productName) + '" />' +
+        '<label for="mobileProductName">Product Name <span class="required-mark">*</span></label>' +
+        '<input type="text" id="mobileProductName" placeholder="Enter product name" maxlength="200" value="' + safeText(item.productName) + '" />' +
+        '<span class="field-error" id="mobileProductNameError" role="alert"></span>' +
       '</div>' +
       '<div class="form-group">' +
-        '<label for="mobileProductSac">SAC</label>' +
-        '<input type="text" id="mobileProductSac" placeholder="Enter SAC" value="' + safeText(item.sac) + '" />' +
+        '<label for="mobileProductSac">SAC <span class="field-hint">(optional, 4–8 digits)</span></label>' +
+        '<input type="text" id="mobileProductSac" placeholder="Enter SAC" inputmode="numeric" maxlength="8" value="' + safeText(item.sac) + '" />' +
+        '<span class="field-error" id="mobileProductSacError" role="alert"></span>' +
       '</div>' +
       '<div class="form-group">' +
-        '<label for="mobileProductQty">Quantity</label>' +
-        '<input type="number" id="mobileProductQty" min="0" step="1" inputmode="numeric" placeholder="Qty" value="' + safeText(item.qty) + '" />' +
+        '<label for="mobileProductQty">Quantity <span class="required-mark">*</span></label>' +
+        '<input type="number" id="mobileProductQty" min="1" step="1" inputmode="numeric" placeholder="Qty" value="' + safeText(item.qty) + '" />' +
+        '<span class="field-error" id="mobileProductQtyError" role="alert"></span>' +
       '</div>' +
       '<div class="form-group">' +
-        '<label for="mobileProductRate">Rate</label>' +
-        '<input type="number" id="mobileProductRate" min="0" step="0.01" inputmode="decimal" placeholder="Rate" value="' + safeText(item.rate) + '" />' +
+        '<label for="mobileProductRate">Rate <span class="required-mark">*</span></label>' +
+        '<input type="number" id="mobileProductRate" min="0.01" step="0.01" inputmode="decimal" placeholder="Rate" value="' + safeText(item.rate) + '" />' +
+        '<span class="field-error" id="mobileProductRateError" role="alert"></span>' +
       '</div>' +
       '<div class="amount-display">Amount: <span id="mobileProductAmount">' + formatAmount(amount) + '</span></div>';
 
     getElement("mobileProductName").oninput = function () {
+      clearFieldError("mobileProductNameError", "mobileProductName");
       updateItemField(index, "productName", this.value);
     };
 
     getElement("mobileProductSac").oninput = function () {
+      clearFieldError("mobileProductSacError", "mobileProductSac");
       updateItemField(index, "sac", this.value);
     };
 
     getElement("mobileProductQty").oninput = function () {
+      clearFieldError("mobileProductQtyError", "mobileProductQty");
       updateItemField(index, "qty", this.value);
     };
 
     getElement("mobileProductRate").oninput = function () {
+      clearFieldError("mobileProductRateError", "mobileProductRate");
       updateItemField(index, "rate", this.value);
+    };
+
+    getElement("mobileProductName").onblur = function () {
+      syncMobileProductFieldsToItem();
+      validateProductItem(index, true);
+    };
+
+    getElement("mobileProductSac").onblur = function () {
+      syncMobileProductFieldsToItem();
+      validateProductItem(index, true);
+    };
+
+    getElement("mobileProductQty").onblur = function () {
+      syncMobileProductFieldsToItem();
+      validateProductItem(index, true);
+    };
+
+    getElement("mobileProductRate").onblur = function () {
+      syncMobileProductFieldsToItem();
+      validateProductItem(index, true);
     };
 
     updateProductProgress();
@@ -695,53 +723,444 @@ var items = [
     }
   }
 
-  function validateStep1() {
+  function clearFieldError(errorId, inputId) {
+    var errorEl = getElement(errorId);
+    var inputEl = inputId ? getElement(inputId) : null;
+
+    if (errorEl) {
+      errorEl.innerText = "";
+    }
+
+    if (inputEl) {
+      inputEl.classList.remove("input-invalid");
+      inputEl.removeAttribute("aria-invalid");
+    }
+  }
+
+  function setFieldError(errorId, inputId, message) {
+    var errorEl = getElement(errorId);
+    var inputEl = inputId ? getElement(inputId) : null;
+
+    if (errorEl) {
+      errorEl.innerText = message;
+    }
+
+    if (inputEl) {
+      inputEl.classList.add("input-invalid");
+      inputEl.setAttribute("aria-invalid", "true");
+    }
+  }
+
+  function clearGlobalError() {
     var errorBox = getElement("errorBox");
-    var count = readProductCountFromInput();
+    if (errorBox) {
+      errorBox.innerText = "";
+    }
+  }
 
-    errorBox.innerText = "";
+  function setGlobalError(message) {
+    var errorBox = getElement("errorBox");
+    if (errorBox) {
+      errorBox.innerText = message;
+    }
+  }
 
-    if (count === null || count < 1) {
-      errorBox.innerText = "Please enter number of products (at least 1).";
+  function clearInvoiceFieldErrors() {
+    clearFieldError("invoiceNoError", "invoiceNo");
+    clearFieldError("invoiceDateError", "invoiceDate");
+    clearFieldError("poNoError", "poNo");
+    clearFieldError("poDateError", "poDate");
+    clearFieldError("productCountError", "productCount");
+  }
+
+  function clearMobileProductFieldErrors() {
+    clearFieldError("mobileProductNameError", "mobileProductName");
+    clearFieldError("mobileProductSacError", "mobileProductSac");
+    clearFieldError("mobileProductQtyError", "mobileProductQty");
+    clearFieldError("mobileProductRateError", "mobileProductRate");
+  }
+
+  function validateInvoiceNo(showErrors) {
+    var input = getElement("invoiceNo");
+    var value = input ? String(input.value).trim() : "";
+
+    clearFieldError("invoiceNoError", "invoiceNo");
+
+    if (!value) {
+      if (showErrors) {
+        setFieldError("invoiceNoError", "invoiceNo", "Invoice number is required.");
+      }
       return false;
     }
 
-    if (count > 50) {
-      errorBox.innerText = "Maximum 50 products allowed.";
+    if (value.length > 50) {
+      if (showErrors) {
+        setFieldError("invoiceNoError", "invoiceNo", "Invoice number cannot exceed 50 characters.");
+      }
       return false;
     }
 
     return true;
   }
 
-  function validateCurrentProduct() {
-    var errorBox = getElement("errorBox");
-    var item = items[currentProductIndex];
+  function validateInvoiceDate(showErrors) {
+    var input = getElement("invoiceDate");
+    var value = input ? String(input.value).trim() : "";
 
-    errorBox.innerText = "";
+    clearFieldError("invoiceDateError", "invoiceDate");
+
+    if (!value) {
+      if (showErrors) {
+        setFieldError("invoiceDateError", "invoiceDate", "Invoice date is required.");
+      }
+      return false;
+    }
+
+    var date = new Date(value + "T00:00:00");
+
+    if (isNaN(date.getTime())) {
+      if (showErrors) {
+        setFieldError("invoiceDateError", "invoiceDate", "Please enter a valid invoice date.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function validatePoNo(showErrors) {
+    var input = getElement("poNo");
+    var value = input ? String(input.value).trim() : "";
+
+    clearFieldError("poNoError", "poNo");
+
+    if (!value) {
+      if (showErrors) {
+        setFieldError("poNoError", "poNo", "PO number is required.");
+      }
+      return false;
+    }
+
+    if (value.length > 50) {
+      if (showErrors) {
+        setFieldError("poNoError", "poNo", "PO number cannot exceed 50 characters.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function validatePoDate(showErrors) {
+    var input = getElement("poDate");
+    var value = input ? String(input.value).trim() : "";
+
+    clearFieldError("poDateError", "poDate");
+
+    if (!value) {
+      if (showErrors) {
+        setFieldError("poDateError", "poDate", "PO date is required.");
+      }
+      return false;
+    }
+
+    var date = new Date(value + "T00:00:00");
+
+    if (isNaN(date.getTime())) {
+      if (showErrors) {
+        setFieldError("poDateError", "poDate", "Please enter a valid PO date.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function validatePoDatesOrder(showErrors) {
+    var invoiceDateInput = getElement("invoiceDate");
+    var poDateInput = getElement("poDate");
+
+    if (!invoiceDateInput || !poDateInput) {
+      return true;
+    }
+
+    var invoiceDateVal = String(invoiceDateInput.value).trim();
+    var poDateVal = String(poDateInput.value).trim();
+
+    if (!invoiceDateVal || !poDateVal) {
+      return true;
+    }
+
+    var invoiceDate = new Date(invoiceDateVal + "T00:00:00");
+    var poDate = new Date(poDateVal + "T00:00:00");
+
+    if (poDate > invoiceDate) {
+      if (showErrors) {
+        setFieldError("poDateError", "poDate", "PO date cannot be after invoice date.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function validateProductCountField(showErrors) {
+    var count = readProductCountFromInput();
+
+    clearFieldError("productCountError", "productCount");
+
+    if (count === null || count < 1) {
+      if (showErrors) {
+        setFieldError("productCountError", "productCount", "Enter number of products (1 to 50).");
+      }
+      return false;
+    }
+
+    if (count > 50) {
+      if (showErrors) {
+        setFieldError("productCountError", "productCount", "Maximum 50 products allowed.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  function validateInvoiceDetails(showErrors) {
+    var validators = [
+      validateInvoiceNo,
+      validateInvoiceDate,
+      validatePoNo,
+      validatePoDate,
+      validatePoDatesOrder,
+      validateProductCountField
+    ];
+    var isValid = true;
+    var firstMessage = "";
+
+    for (var i = 0; i < validators.length; i++) {
+      if (!validators[i](showErrors)) {
+        isValid = false;
+
+        if (!firstMessage && showErrors) {
+          var errorEl = document.querySelector(".field-error:not(:empty)");
+          if (errorEl) {
+            firstMessage = errorEl.innerText;
+          }
+        }
+      }
+    }
+
+    if (!isValid && showErrors && firstMessage) {
+      setGlobalError(firstMessage);
+    }
+
+    return isValid;
+  }
+
+  function isValidSac(value) {
+    var sac = String(value).trim();
+
+    if (sac === "") {
+      return true;
+    }
+
+    return /^[0-9]{4,8}$/.test(sac);
+  }
+
+  function isValidQuantity(value) {
+    var qty = String(value).trim();
+
+    if (qty === "") {
+      return false;
+    }
+
+    var num = parseFloat(qty);
+
+    if (isNaN(num) || num <= 0) {
+      return false;
+    }
+
+    if (Math.floor(num) !== num) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function isValidRate(value) {
+    var rate = String(value).trim();
+
+    if (rate === "") {
+      return false;
+    }
+
+    var num = parseFloat(rate);
+
+    return !isNaN(num) && num > 0;
+  }
+
+  function validateProductItem(index, showErrors) {
+    var item = items[index];
 
     if (!item) {
       return true;
     }
 
-    var productLabel = "product " + (currentProductIndex + 1);
+    var rowLabel = "Product " + (index + 1);
+    var isValid = true;
+    var firstMessage = "";
 
     if (String(item.productName).trim() === "") {
-      errorBox.innerText = "Please enter product name for " + productLabel + ".";
-      return false;
+      isValid = false;
+      firstMessage = "Please enter product name for " + rowLabel + ".";
+
+      if (showErrors && mobileWizardActive && index === currentProductIndex) {
+        setFieldError("mobileProductNameError", "mobileProductName", firstMessage);
+      }
     }
 
-    if (String(item.qty).trim() === "" || parseFloat(item.qty) < 0 || isNaN(parseFloat(item.qty))) {
-      errorBox.innerText = "Please enter valid quantity for " + productLabel + ".";
-      return false;
+    if (!isValidSac(item.sac)) {
+      isValid = false;
+      firstMessage = firstMessage || "SAC must be 4 to 8 digits for " + rowLabel + " (or leave empty).";
+
+      if (showErrors && mobileWizardActive && index === currentProductIndex) {
+        setFieldError("mobileProductSacError", "mobileProductSac", "SAC must be 4 to 8 digits (or leave empty).");
+      }
     }
 
-    if (String(item.rate).trim() === "" || parseFloat(item.rate) < 0 || isNaN(parseFloat(item.rate))) {
-      errorBox.innerText = "Please enter valid rate for " + productLabel + ".";
-      return false;
+    if (!isValidQuantity(item.qty)) {
+      isValid = false;
+      firstMessage = firstMessage || "Enter a valid quantity (whole number greater than 0) for " + rowLabel + ".";
+
+      if (showErrors && mobileWizardActive && index === currentProductIndex) {
+        setFieldError("mobileProductQtyError", "mobileProductQty", "Enter quantity greater than 0.");
+      }
     }
 
-    return true;
+    if (!isValidRate(item.rate)) {
+      isValid = false;
+      firstMessage = firstMessage || "Enter a valid rate (greater than 0) for " + rowLabel + ".";
+
+      if (showErrors && mobileWizardActive && index === currentProductIndex) {
+        setFieldError("mobileProductRateError", "mobileProductRate", "Enter rate greater than 0.");
+      }
+    }
+
+    if (!isValid && showErrors) {
+      setGlobalError(firstMessage);
+      markDesktopRowInvalid(index, !isValid);
+    } else if (showErrors) {
+      markDesktopRowInvalid(index, false);
+    }
+
+    return isValid;
+  }
+
+  function markDesktopRowInvalid(index, isInvalid) {
+    var tbody = getElement("itemsInputBody");
+
+    if (!tbody || !tbody.rows[index]) {
+      return;
+    }
+
+    var inputs = tbody.rows[index].querySelectorAll("input");
+
+    for (var i = 0; i < inputs.length; i++) {
+      if (isInvalid) {
+        inputs[i].classList.add("input-invalid");
+        inputs[i].setAttribute("aria-invalid", "true");
+      } else {
+        inputs[i].classList.remove("input-invalid");
+        inputs[i].removeAttribute("aria-invalid");
+      }
+    }
+  }
+
+  function validateAllProducts(showErrors, focusFirstInvalid) {
+    syncItemsToProductCount();
+
+    if (showErrors) {
+      clearMobileProductFieldErrors();
+    }
+
+    var isValid = true;
+    var firstInvalidIndex = -1;
+
+    for (var i = 0; i < items.length; i++) {
+      if (!validateProductItem(i, showErrors)) {
+        isValid = false;
+
+        if (firstInvalidIndex === -1) {
+          firstInvalidIndex = i;
+        }
+      }
+    }
+
+    if (!isValid && focusFirstInvalid && mobileWizardActive && firstInvalidIndex >= 0) {
+      currentProductIndex = firstInvalidIndex;
+      goToStep(2, false);
+      renderMobileProductForm();
+    }
+
+    return isValid;
+  }
+
+  function syncMobileProductFieldsToItem() {
+    if (!items[currentProductIndex]) {
+      return;
+    }
+
+    var nameEl = getElement("mobileProductName");
+    var sacEl = getElement("mobileProductSac");
+    var qtyEl = getElement("mobileProductQty");
+    var rateEl = getElement("mobileProductRate");
+
+    if (nameEl) {
+      items[currentProductIndex].productName = nameEl.value;
+    }
+
+    if (sacEl) {
+      items[currentProductIndex].sac = sacEl.value;
+    }
+
+    if (qtyEl) {
+      items[currentProductIndex].qty = qtyEl.value;
+    }
+
+    if (rateEl) {
+      items[currentProductIndex].rate = rateEl.value;
+    }
+  }
+
+  function validateCurrentMobileProductFields(showErrors) {
+    syncMobileProductFieldsToItem();
+
+    if (showErrors) {
+      clearMobileProductFieldErrors();
+    }
+
+    return validateProductItem(currentProductIndex, showErrors);
+  }
+
+  function validateForm(showErrors, focusFirstInvalid) {
+    if (showErrors) {
+      clearGlobalError();
+      clearInvoiceFieldErrors();
+    }
+
+    var invoiceOk = validateInvoiceDetails(showErrors);
+    var productsOk = validateAllProducts(showErrors, focusFirstInvalid);
+
+    return invoiceOk && productsOk;
+  }
+
+  function validateStep1() {
+    return validateInvoiceDetails(true);
+  }
+
+  function validateCurrentProduct() {
+    return validateCurrentMobileProductFields(true);
   }
 
   function validateStep(step) {
@@ -751,10 +1170,14 @@ var items = [
 
     if (step === 2) {
       if (mobileWizardActive) {
-        return validateCurrentProduct();
+        if (!validateCurrentProduct()) {
+          return false;
+        }
+
+        return true;
       }
 
-      return validateItems();
+      return validateAllProducts(true, false);
     }
 
     return true;
@@ -777,6 +1200,10 @@ var items = [
     }
 
     if (currentStep === 2) {
+      if (!validateCurrentProduct()) {
+        return;
+      }
+
       if (currentProductIndex < items.length - 1) {
         if (document.activeElement && document.activeElement.blur) {
           document.activeElement.blur();
@@ -784,8 +1211,12 @@ var items = [
 
         currentProductIndex++;
         renderMobileProductForm();
-        getElement("errorBox").innerText = "";
+        clearGlobalError();
         window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      if (!validateAllProducts(true, true)) {
         return;
       }
 
@@ -922,6 +1353,11 @@ var items = [
 
     items[index][field] = value;
 
+    if (inputElement) {
+      inputElement.classList.remove("input-invalid");
+      inputElement.removeAttribute("aria-invalid");
+    }
+
     var row = inputElement.parentNode.parentNode;
     var amountCell = row.querySelector(".row-amount");
 
@@ -968,31 +1404,7 @@ var items = [
   }
 
   function validateItems() {
-    var errorBox = getElement("errorBox");
-    errorBox.innerText = "";
-
-    syncItemsToProductCount();
-
-    for (var i = 0; i < items.length; i++) {
-      var item = items[i];
-
-      if (String(item.productName).trim() === "") {
-        errorBox.innerText = "Please enter product name in row " + (i + 1);
-        return false;
-      }
-
-      if (String(item.qty).trim() === "" || parseFloat(item.qty) < 0 || isNaN(parseFloat(item.qty))) {
-        errorBox.innerText = "Please enter valid quantity in row " + (i + 1);
-        return false;
-      }
-
-      if (String(item.rate).trim() === "" || parseFloat(item.rate) < 0 || isNaN(parseFloat(item.rate))) {
-        errorBox.innerText = "Please enter valid rate in row " + (i + 1);
-        return false;
-      }
-    }
-
-    return true;
+    return validateAllProducts(true, false);
   }
 
   function formatSerial(number) {
@@ -1024,14 +1436,14 @@ var items = [
     invoiceItemsBody.innerHTML = "";
 
     if (showError) {
-      if (!validateItems()) {
+      if (!validateForm(true, mobileWizardActive)) {
         getElement("previewTotal").innerText = formatAmount(0);
         getElement("beforeTax").innerText = formatAmount(0);
         getElement("amountWords").innerText = "Zero only.";
         return;
       }
     } else {
-      getElement("errorBox").innerText = "";
+      clearGlobalError();
     }
 
     var total = 0;
@@ -1414,22 +1826,45 @@ var items = [
     generateInvoice(false);
 
     getElement("invoiceNo").oninput = function () {
+      clearFieldError("invoiceNoError", "invoiceNo");
       generateInvoice(false);
+    };
+
+    getElement("invoiceNo").onblur = function () {
+      validateInvoiceNo(true);
     };
 
     getElement("invoiceDate").oninput = function () {
+      clearFieldError("invoiceDateError", "invoiceDate");
       generateInvoice(false);
+    };
+
+    getElement("invoiceDate").onblur = function () {
+      validateInvoiceDate(true);
+      validatePoDatesOrder(true);
     };
 
     getElement("poNo").oninput = function () {
+      clearFieldError("poNoError", "poNo");
       generateInvoice(false);
+    };
+
+    getElement("poNo").onblur = function () {
+      validatePoNo(true);
     };
 
     getElement("poDate").oninput = function () {
+      clearFieldError("poDateError", "poDate");
       generateInvoice(false);
     };
 
+    getElement("poDate").onblur = function () {
+      validatePoDate(true);
+      validatePoDatesOrder(true);
+    };
+
     getElement("productCount").oninput = function () {
+      clearFieldError("productCountError", "productCount");
       syncItemsToProductCount(false);
       renderItemInputs();
       generateInvoice(false);
@@ -1441,6 +1876,7 @@ var items = [
 
     getElement("productCount").onblur = function () {
       normalizeProductCountInput();
+      validateProductCountField(true);
       renderItemInputs();
       generateInvoice(false);
 
