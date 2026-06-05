@@ -897,6 +897,18 @@
     color: #f4f4f4;
   }
 
+  .pwa-bar--online {
+    background: #1b5e20;
+    color: #f4f4f4;
+  }
+
+  .offline-page__status {
+    text-align: center;
+    font-weight: bold;
+    margin: 0 0 12px;
+    color: #5c3d1a;
+  }
+
   .pwa-bar__btn {
     padding: 6px 14px;
     border: none;

@@ -24,8 +24,11 @@
     <button type="button" id="pwaUpdateBtn" class="pwa-bar__btn">Refresh</button>
     <button type="button" id="pwaUpdateDismiss" class="pwa-bar__btn pwa-bar__btn--ghost" aria-label="Dismiss update notice">×</button>
   </div>
-  <div id="pwaOfflineBar" class="pwa-bar pwa-bar--offline" role="status" hidden>
-    <span class="pwa-bar__text">You're offline — forms and preview still work.</span>
+  <div id="pwaOfflineBar" class="pwa-bar pwa-bar--offline" role="status" aria-live="polite" hidden>
+    <span class="pwa-bar__text" id="pwaConnectionText">You're offline — forms and preview still work.</span>
+  </div>
+  <div id="pwaOnlineBar" class="pwa-bar pwa-bar--online" role="status" aria-live="polite" hidden>
+    <span class="pwa-bar__text">Back online — app updated in the background.</span>
   </div>
 
   <div class="app-container">

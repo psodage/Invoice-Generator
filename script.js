@@ -118,14 +118,67 @@ var items = [
     }
   }
 
+  function refreshServiceWorkerCache() {
+    if (!swRegistration || !swRegistration.update) {
+      return Promise.resolve();
+    }
+
+    return swRegistration.update().catch(function () {
+      return null;
+    });
+  }
+
   function setupOfflineIndicator() {
-    var bar = getElement("pwaOfflineBar");
-    if (!bar) {
-      return;
+    var offlineBar = getElement("pwaOfflineBar");
+    var onlineBar = getElement("pwaOnlineBar");
+    var connectionText = getElement("pwaConnectionText");
+    var wasOffline = !navigator.onLine;
+    var onlineHideTimer = null;
+
+    function hideOnlineBar() {
+      if (onlineBar) {
+        onlineBar.hidden = true;
+      }
+      if (onlineHideTimer) {
+        clearTimeout(onlineHideTimer);
+        onlineHideTimer = null;
+      }
+    }
+
+    function showOnlineBar() {
+      if (!onlineBar) {
+        return;
+      }
+      onlineBar.hidden = false;
+      onlineHideTimer = setTimeout(hideOnlineBar, 5000);
     }
 
     function syncOnlineState() {
-      bar.hidden = navigator.onLine;
+      var online = navigator.onLine;
+
+      if (offlineBar) {
+        offlineBar.hidden = online;
+      }
+
+      if (connectionText) {
+        connectionText.innerText = online
+          ? "You're online."
+          : "You're offline — forms, preview, and print still work.";
+      }
+
+      document.documentElement.classList.toggle("is-offline", !online);
+      document.documentElement.classList.toggle("is-online", online);
+
+      if (online && wasOffline) {
+        wasOffline = false;
+        showOnlineBar();
+        refreshServiceWorkerCache();
+      }
+
+      if (!online) {
+        wasOffline = true;
+        hideOnlineBar();
+      }
     }
 
     window.addEventListener("online", syncOnlineState);
