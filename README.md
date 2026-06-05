@@ -20,7 +20,7 @@ The app is installable when served over HTTPS or localhost. It caches core asset
 
 ### Replace app icons
 
-Placeholder icons live in `icons/icon-192.png` and `icons/icon-512.png`. See `icons/README.md` for sizing tips. After replacing icons, bump `CACHE_VERSION` in `service-worker.js` so clients pick up the new files.
+App icons live in the `web/` folder (`favicon.ico`, `apple-touch-icon.png`, PNG sizes for PWA). See `web/README.txt`. After replacing icons, bump `CACHE_VERSION` in `service-worker.js` so clients pick up the new files.
 
 ### Test install and offline
 

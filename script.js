@@ -28,31 +28,44 @@ var items = [
   }
 
   var swRegistration = null;
-  var SW_STATIC_CACHE = "invoice-static-v2.0.2";
+  var SW_STATIC_CACHE = "invoice-static-v2.1.0";
+  var SW_READY_KEY = "invoice-sw-ready-v2";
 
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator) || !window.isSecureContext) {
       return;
     }
 
-    window.addEventListener("load", function () {
-      navigator.serviceWorker.register("service-worker.js")
-        .then(function (registration) {
-          swRegistration = registration;
-          listenForServiceWorkerUpdates(registration);
-          warmOfflineCache(registration);
-        })
-        .catch(function (err) {
-          console.warn("Service worker registration failed:", err);
-        });
-
-      navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (!window._swWaitingForReload) {
-          return;
-        }
-        window.location.reload();
-      });
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!window._swWaitingForReload) {
+        return;
+      }
+      window.location.reload();
     });
+
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+      .then(function (registration) {
+        swRegistration = registration;
+        listenForServiceWorkerUpdates(registration);
+
+        return navigator.serviceWorker.ready.then(function () {
+          if (!navigator.serviceWorker.controller && !sessionStorage.getItem(SW_READY_KEY)) {
+            sessionStorage.setItem(SW_READY_KEY, "1");
+
+            if (registration.waiting) {
+              registration.waiting.postMessage({ type: "SKIP_WAITING" });
+            }
+
+            window.location.reload();
+            return;
+          }
+
+          warmOfflineCache(registration);
+        });
+      })
+      .catch(function (err) {
+        console.warn("Service worker registration failed:", err);
+      });
   }
 
   function listenForServiceWorkerUpdates(registration) {
@@ -170,8 +183,12 @@ var items = [
         "manifest.json",
         "offline.html",
         "vendor/html2pdf.bundle.min.js",
-        "icons/icon-192.png",
-        "icons/icon-512.png"
+        "web/favicon.ico",
+        "web/apple-touch-icon.png",
+        "web/icon-192.png",
+        "web/icon-512.png",
+        "web/icon-192-maskable.png",
+        "web/icon-512-maskable.png"
       ];
 
       return Promise.all(assets.map(cacheLocalAsset)).then(function () {
@@ -1279,8 +1296,9 @@ var items = [
     return words.charAt(0).toUpperCase() + words.slice(1);
   }
 
+  registerServiceWorker();
+
   window.onload = function () {
-    registerServiceWorker();
     syncItemsToProductCount();
     renderItemInputs();
     generateInvoice(false);

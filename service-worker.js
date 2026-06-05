@@ -1,33 +1,37 @@
-/* S.S. Engineers Invoice Generator — Service Worker
- * Offline: always serves cached index.html + app assets from the install shell.
- */
+/* S.S. Engineers Invoice Generator — Service Worker */
 
 "use strict";
 
-var CACHE_VERSION = "v2.0.2";
+var CACHE_VERSION = "v2.1.0";
 var STATIC_CACHE = "invoice-static-" + CACHE_VERSION;
-var RUNTIME_CACHE = "invoice-runtime-" + CACHE_VERSION;
 
 var INDEX_FILE = "index.html";
-var OFFLINE_FILE = "offline.html";
 
 var SHELL_FILES = [
   INDEX_FILE,
   "styles.css",
   "script.js",
   "manifest.json",
-  OFFLINE_FILE,
-  "icons/icon-192.png",
-  "icons/icon-512.png",
+  "offline.html",
+  "service-worker.js",
+  "web/favicon.ico",
+  "web/apple-touch-icon.png",
+  "web/icon-192.png",
+  "web/icon-512.png",
+  "web/icon-192-maskable.png",
+  "web/icon-512-maskable.png",
   "vendor/html2pdf.bundle.min.js"
 ];
 
-function getScopeBase() {
+function getScopeUrl() {
+  if (self.registration && self.registration.scope) {
+    return self.registration.scope;
+  }
   return new URL("./", self.location.href).href;
 }
 
-function resolveUrl(relativePath) {
-  return new URL(relativePath, getScopeBase()).href;
+function assetUrl(relativePath) {
+  return new URL(relativePath, getScopeUrl()).href;
 }
 
 function isNavigationRequest(request) {
@@ -43,235 +47,194 @@ function isNavigationRequest(request) {
   );
 }
 
-function isShellAsset(pathname) {
+function isShellPath(pathname) {
   if (pathname === "/" || pathname.endsWith("/")) {
     return true;
   }
 
   for (var i = 0; i < SHELL_FILES.length; i++) {
-    var name = SHELL_FILES[i];
-    if (pathname === "/" + name || pathname.endsWith("/" + name)) {
+    var file = SHELL_FILES[i];
+    if (pathname.endsWith("/" + file) || pathname === "/" + file) {
       return true;
     }
   }
 
-  return pathname.indexOf("/icons/") !== -1 || pathname.indexOf("/vendor/") !== -1;
+  return pathname.indexOf("/web/") !== -1 || pathname.indexOf("/vendor/") !== -1;
 }
 
-function basenameFromUrl(urlString) {
-  try {
-    var path = new URL(urlString).pathname;
-    var parts = path.split("/");
-    return parts[parts.length - 1] || "";
-  } catch (e) {
-    return "";
-  }
-}
-
-function putResponse(cache, requestOrUrl, response) {
+function putClone(cache, key, response) {
   if (!response || response.status !== 200) {
     return Promise.resolve();
   }
-
-  return cache.put(requestOrUrl, response);
+  return cache.put(key, response.clone());
 }
 
-function storeInCache(cacheName, url, response) {
-  return caches.open(cacheName).then(function (cache) {
-    return putResponse(cache, url, response.clone());
-  });
+function cacheIndexEverywhere(cache, response) {
+  var scope = getScopeUrl();
+  var indexUrl = assetUrl(INDEX_FILE);
+
+  return Promise.all([
+    putClone(cache, indexUrl, response),
+    putClone(cache, scope, response),
+    putClone(cache, new URL("./", scope).href, response),
+    putClone(cache, new Request(scope, { mode: "navigate" }), response)
+  ]);
 }
 
-function precacheShellFile(cache, relativePath) {
-  var url = resolveUrl(relativePath);
+function precacheOne(cache, relativePath) {
+  var url = assetUrl(relativePath);
 
   return fetch(url)
     .then(function (response) {
       if (!response.ok) {
-        throw new Error("HTTP " + response.status + " for " + url);
+        throw new Error("HTTP " + response.status);
       }
 
-      var jobs = [putResponse(cache, url, response.clone())];
-
-      if (relativePath === INDEX_FILE) {
-        var scope = getScopeBase();
-        jobs.push(putResponse(cache, scope, response.clone()));
-        jobs.push(putResponse(cache, resolveUrl("./"), response.clone()));
-        jobs.push(putResponse(cache, new Request(scope, { mode: "navigate" }), response.clone()));
-      }
-
-      return Promise.all(jobs);
+      return putClone(cache, url, response).then(function () {
+        if (relativePath === INDEX_FILE) {
+          return cacheIndexEverywhere(cache, response);
+        }
+      });
     })
     .catch(function (err) {
-      console.warn("[SW] Shell precache failed:", url, err);
+      console.warn("[SW] Precache failed:", url, err);
     });
 }
 
-function openStaticCache() {
-  return caches.open(STATIC_CACHE);
-}
+function findCachedIndex() {
+  return caches.open(STATIC_CACHE).then(function (cache) {
+    var scope = getScopeUrl();
+    var keys = [
+      assetUrl(INDEX_FILE),
+      scope,
+      new URL("./", scope).href
+    ];
 
-function openRuntimeCache() {
-  return caches.open(RUNTIME_CACHE);
-}
+    var i = 0;
 
-function matchExact(url) {
-  return caches.match(url).then(function (hit) {
-    if (hit) {
-      return hit;
+    function tryKey() {
+      if (i >= keys.length) {
+        return cache.keys().then(function (requests) {
+          for (var j = 0; j < requests.length; j++) {
+            if (requests[j].url.indexOf(INDEX_FILE) !== -1) {
+              return cache.match(requests[j]);
+            }
+          }
+          return null;
+        });
+      }
+
+      return cache.match(keys[i]).then(function (hit) {
+        i += 1;
+        if (hit) {
+          return hit;
+        }
+        return tryKey();
+      });
     }
 
-    return openStaticCache().then(function (cache) {
-      return cache.match(url);
-    });
+    return tryKey();
   });
 }
 
-function matchByBasename(urlString) {
-  var base = basenameFromUrl(urlString);
+function matchShellAsset(request) {
+  var url = request.url;
 
-  if (!base) {
-    return Promise.resolve(null);
-  }
+  return caches.open(STATIC_CACHE).then(function (cache) {
+    return cache.match(request).then(function (hit) {
+      if (hit) {
+        return hit;
+      }
+      return cache.match(url);
+    }).then(function (hit) {
+      if (hit) {
+        return hit;
+      }
 
-  function searchCache(cacheName) {
-    return caches.open(cacheName).then(function (cache) {
+      var name = url.split("/").pop();
       return cache.keys().then(function (keys) {
         for (var i = 0; i < keys.length; i++) {
-          if (basenameFromUrl(keys[i].url) === base) {
+          if (keys[i].url.split("/").pop() === name) {
             return cache.match(keys[i]);
           }
         }
         return null;
       });
     });
-  }
-
-  return searchCache(STATIC_CACHE).then(function (hit) {
-    if (hit) {
-      return hit;
-    }
-    return searchCache(RUNTIME_CACHE);
-  });
-}
-
-function matchAny(urlString) {
-  return matchExact(urlString).then(function (hit) {
-    if (hit) {
-      return hit;
-    }
-    return matchByBasename(urlString);
-  });
-}
-
-function findCachedIndex() {
-  var candidates = [
-    resolveUrl(INDEX_FILE),
-    getScopeBase(),
-    resolveUrl("./"),
-    resolveUrl("./" + INDEX_FILE)
-  ];
-
-  var index = 0;
-
-  function tryCandidate() {
-    if (index >= candidates.length) {
-      return openStaticCache().then(function (cache) {
-        return cache.keys().then(function (keys) {
-          for (var i = 0; i < keys.length; i++) {
-            if (keys[i].url.indexOf(INDEX_FILE) !== -1) {
-              return cache.match(keys[i]);
-            }
-          }
-          return null;
-        });
-      });
-    }
-
-    var url = candidates[index];
-    index += 1;
-
-    return matchExact(url).then(function (hit) {
-      if (hit) {
-        return hit;
-      }
-      return tryCandidate();
-    });
-  }
-
-  return tryCandidate();
-}
-
-function refreshInBackground(request, cacheName) {
-  fetch(request)
-    .then(function (response) {
-      if (response && response.status === 200) {
-        storeInCache(cacheName, request.url, response);
-      }
-    })
-    .catch(function () {});
-}
-
-function cacheFirst(request, cacheName) {
-  return matchAny(request.url).then(function (cached) {
-    if (cached) {
-      refreshInBackground(request, cacheName);
-      return cached;
-    }
-
-    return fetch(request)
-      .then(function (response) {
-        if (response && response.status === 200) {
-          return storeInCache(cacheName, request.url, response).then(function () {
-            return response;
-          });
-        }
-        return response;
-      })
-      .catch(function () {
-        return matchAny(request.url);
-      });
   });
 }
 
 function handleNavigation(request) {
   return findCachedIndex().then(function (cachedIndex) {
+    if (cachedIndex) {
+      fetch(request)
+        .then(function (response) {
+          if (response && response.ok) {
+            return caches.open(STATIC_CACHE).then(function (cache) {
+              return cacheIndexEverywhere(cache, response);
+            });
+          }
+        })
+        .catch(function () {});
+
+      return cachedIndex;
+    }
+
     return fetch(request)
       .then(function (response) {
-        if (response && response.status === 200) {
-          var jobs = [
-            storeInCache(RUNTIME_CACHE, request.url, response),
-            storeInCache(STATIC_CACHE, resolveUrl(INDEX_FILE), response),
-            storeInCache(STATIC_CACHE, getScopeBase(), response)
-          ];
-          return Promise.all(jobs).then(function () {
-            return response;
+        if (response && response.ok) {
+          return caches.open(STATIC_CACHE).then(function (cache) {
+            return cacheIndexEverywhere(cache, response).then(function () {
+              return response;
+            });
           });
         }
         return response;
       })
       .catch(function () {
-        if (cachedIndex) {
-          return cachedIndex;
-        }
+        return findCachedIndex();
+      });
+  });
+}
 
-        return findCachedIndex().then(function (indexHit) {
-          if (indexHit) {
-            return indexHit;
+function handleShellAsset(request) {
+  return matchShellAsset(request).then(function (cached) {
+    if (cached) {
+      fetch(request)
+        .then(function (response) {
+          if (response && response.ok) {
+            return caches.open(STATIC_CACHE).then(function (cache) {
+              return putClone(cache, request.url, response);
+            });
           }
+        })
+        .catch(function () {});
+      return cached;
+    }
 
-          return matchAny(resolveUrl(OFFLINE_FILE));
-        });
+    return fetch(request)
+      .then(function (response) {
+        if (response && response.ok) {
+          return caches.open(STATIC_CACHE).then(function (cache) {
+            return putClone(cache, request.url, response).then(function () {
+              return response;
+            });
+          });
+        }
+        return response;
+      })
+      .catch(function () {
+        return matchShellAsset(request);
       });
   });
 }
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
-    openStaticCache()
+    caches.open(STATIC_CACHE)
       .then(function (cache) {
         return Promise.all(SHELL_FILES.map(function (file) {
-          return precacheShellFile(cache, file);
+          return precacheOne(cache, file);
         }));
       })
       .then(function () {
@@ -283,11 +246,14 @@ self.addEventListener("install", function (event) {
 self.addEventListener("activate", function (event) {
   event.waitUntil(
     caches.keys()
-      .then(function (keys) {
+      .then(function (names) {
         return Promise.all(
-          keys.map(function (key) {
-            if (key !== STATIC_CACHE && key !== RUNTIME_CACHE) {
-              return caches.delete(key);
+          names.map(function (name) {
+            if (name.indexOf("invoice-static-") === 0 && name !== STATIC_CACHE) {
+              return caches.delete(name);
+            }
+            if (name.indexOf("invoice-runtime-") === 0) {
+              return caches.delete(name);
             }
             return Promise.resolve();
           })
@@ -300,15 +266,20 @@ self.addEventListener("activate", function (event) {
 });
 
 self.addEventListener("message", function (event) {
-  if (event.data && event.data.type === "SKIP_WAITING") {
-    self.skipWaiting();
+  if (!event.data) {
+    return;
   }
 
-  if (event.data && event.data.type === "CACHE_SHELL") {
+  if (event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+
+  if (event.data.type === "CACHE_SHELL") {
     event.waitUntil(
-      openStaticCache().then(function (cache) {
+      caches.open(STATIC_CACHE).then(function (cache) {
         return Promise.all(SHELL_FILES.map(function (file) {
-          return precacheShellFile(cache, file);
+          return precacheOne(cache, file);
         }));
       })
     );
@@ -333,10 +304,10 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  if (isShellAsset(url.pathname)) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+  if (isShellPath(url.pathname)) {
+    event.respondWith(handleShellAsset(request));
     return;
   }
 
-  event.respondWith(cacheFirst(request, RUNTIME_CACHE));
+  event.respondWith(handleShellAsset(request));
 });
