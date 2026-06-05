@@ -463,11 +463,32 @@ var items = [
     }
   }
 
-  function getProductCount() {
+  function readProductCountFromInput() {
     var countInput = getElement("productCount");
-    var count = parseInt(countInput ? countInput.value : "1", 10);
 
-    if (isNaN(count) || count < 1) {
+    if (!countInput) {
+      return null;
+    }
+
+    var raw = String(countInput.value).trim();
+
+    if (raw === "") {
+      return null;
+    }
+
+    var count = parseInt(raw, 10);
+
+    if (isNaN(count)) {
+      return null;
+    }
+
+    return count;
+  }
+
+  function getProductCount() {
+    var count = readProductCountFromInput();
+
+    if (count === null || count < 1) {
       return 1;
     }
 
@@ -478,11 +499,29 @@ var items = [
     return count;
   }
 
-  function syncItemsToProductCount() {
+  function normalizeProductCountInput() {
+    var countInput = getElement("productCount");
+
+    if (!countInput) {
+      return;
+    }
+
+    var count = getProductCount();
+    countInput.value = String(count);
+    syncItemsToProductCount(true);
+  }
+
+  function syncItemsToProductCount(forceSync) {
+    var parsed = readProductCountFromInput();
+
+    if (parsed === null && !forceSync) {
+      return;
+    }
+
     var count = getProductCount();
     var countInput = getElement("productCount");
 
-    if (countInput && countInput.value !== String(count)) {
+    if (countInput && forceSync) {
       countInput.value = String(count);
     }
 
@@ -658,12 +697,11 @@ var items = [
 
   function validateStep1() {
     var errorBox = getElement("errorBox");
-    var countInput = getElement("productCount");
-    var count = parseInt(countInput ? countInput.value : "", 10);
+    var count = readProductCountFromInput();
 
     errorBox.innerText = "";
 
-    if (isNaN(count) || count < 1) {
+    if (count === null || count < 1) {
       errorBox.innerText = "Please enter number of products (at least 1).";
       return false;
     }
@@ -732,7 +770,7 @@ var items = [
     }
 
     if (currentStep === 1) {
-      syncItemsToProductCount();
+      normalizeProductCountInput();
       currentProductIndex = 0;
       goToStep(2);
       return;
@@ -1041,6 +1079,11 @@ var items = [
     }
   }
 
+  function prepareInvoiceForExport() {
+    resetMobileInvoiceScale();
+    generateInvoice(false);
+  }
+
   function printInvoice() {
     generateInvoice(true);
 
@@ -1049,7 +1092,7 @@ var items = [
     }
 
     var needsMobileRestore = document.querySelector(".invoice-wrapper.mobile-visible") !== null;
-    resetMobileInvoiceScale();
+    prepareInvoiceForExport();
 
     document.title = buildPdfFileName().replace(/\.pdf$/i, "");
 
@@ -1070,6 +1113,8 @@ var items = [
   }
 
   function createPdfExportElement() {
+    prepareInvoiceForExport();
+
     var source = getElement("invoice");
     var root = document.createElement("div");
     var page = source.cloneNode(true);
@@ -1096,11 +1141,14 @@ var items = [
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: {
         scale: 2,
-        useCORS: true,
+        useCORS: false,
+        allowTaint: true,
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        width: 794,
+        windowWidth: 794
       },
       jsPDF: {
         unit: "mm",
@@ -1117,24 +1165,33 @@ var items = [
       return Promise.reject(new Error("PDF library not loaded"));
     }
 
+    var needsMobileRestore = document.querySelector(".invoice-wrapper.mobile-visible") !== null;
     var exportEl = createPdfExportElement();
 
     return new Promise(function (resolve, reject) {
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          html2pdf()
-            .set(buildInvoicePdfOptions(fileName))
-            .from(exportEl.page)
-            .toPdf()
-            .output("blob")
-            .then(function (blob) {
-              destroyPdfExportElement(exportEl);
-              resolve(blob);
-            })
-            .catch(function (err) {
-              destroyPdfExportElement(exportEl);
-              reject(err);
-            });
+          setTimeout(function () {
+            html2pdf()
+              .set(buildInvoicePdfOptions(fileName))
+              .from(exportEl.page)
+              .toPdf()
+              .output("blob")
+              .then(function (blob) {
+                destroyPdfExportElement(exportEl);
+                if (needsMobileRestore) {
+                  updateMobileInvoiceScale();
+                }
+                resolve(blob);
+              })
+              .catch(function (err) {
+                destroyPdfExportElement(exportEl);
+                if (needsMobileRestore) {
+                  updateMobileInvoiceScale();
+                }
+                reject(err);
+              });
+          }, 100);
         });
       });
     });
@@ -1299,7 +1356,7 @@ var items = [
   registerServiceWorker();
 
   window.onload = function () {
-    syncItemsToProductCount();
+    syncItemsToProductCount(true);
     renderItemInputs();
     generateInvoice(false);
 
@@ -1320,7 +1377,17 @@ var items = [
     };
 
     getElement("productCount").oninput = function () {
-      syncItemsToProductCount();
+      syncItemsToProductCount(false);
+      renderItemInputs();
+      generateInvoice(false);
+
+      if (mobileWizardActive && currentStep === 2) {
+        renderMobileProductForm();
+      }
+    };
+
+    getElement("productCount").onblur = function () {
+      normalizeProductCountInput();
       renderItemInputs();
       generateInvoice(false);
 
