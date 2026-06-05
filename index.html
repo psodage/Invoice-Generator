@@ -3,19 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta name="description" content="Create, preview, and export invoices for S.S. Engineers." />
   <meta name="theme-color" content="#111111" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Invoice Gen" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
   <title>S.S. Engineers Invoice Generator</title>
 
   <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.json" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="vendor/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
+  <div id="pwaUpdateBar" class="pwa-bar pwa-bar--update" role="status" hidden>
+    <span class="pwa-bar__text">A new version is available.</span>
+    <button type="button" id="pwaUpdateBtn" class="pwa-bar__btn">Refresh</button>
+    <button type="button" id="pwaUpdateDismiss" class="pwa-bar__btn pwa-bar__btn--ghost" aria-label="Dismiss update notice">×</button>
+  </div>
+  <div id="pwaOfflineBar" class="pwa-bar pwa-bar--offline" role="status" hidden>
+    <span class="pwa-bar__text">You're offline — forms and preview still work.</span>
+  </div>
+
   <div class="app-container">
 
     <div class="form-section">
@@ -64,14 +76,22 @@
             <label for="poDate">PO Date</label>
             <input type="date" id="poDate" />
           </div>
+
+          <div class="form-group">
+            <label for="productCount">Number of Products</label>
+            <input type="number" id="productCount" min="1" max="50" step="1" inputmode="numeric" value="1" placeholder="How many products?" />
+          </div>
         </div>
       </div>
 
       <div class="form-step" data-step="2">
         <h3 class="step-heading">Product Details</h3>
-        <p class="step-hint">Add each product or service line for this invoice.</p>
+        <p class="product-progress" id="productProgress">Product 1 of 1</p>
+        <p class="step-hint" id="productStepHint">Enter details for this product.</p>
 
-        <div class="items-scroll">
+        <div class="product-single-form" id="productSingleForm"></div>
+
+        <div class="items-scroll desktop-items-table">
           <table class="items-form-table">
             <thead>
               <tr>
@@ -88,9 +108,6 @@
           </table>
         </div>
 
-        <div class="add-product-row">
-          <button type="button" class="btn-secondary btn-full-mobile" onclick="addItem()">+ Add Product</button>
-        </div>
       </div>
 
       <div class="form-step" data-step="3">
@@ -112,7 +129,6 @@
       </div>
 
       <div class="btn-group desktop-actions">
-        <button type="button" class="btn-secondary" onclick="addItem()">Add Product Row</button>
         <button type="button" class="btn-primary" onclick="generateInvoice()">Generate Invoice</button>
         <button type="button" class="btn-print" onclick="printInvoice()">Print / Save PDF</button>
         <button type="button" class="btn-whatsapp" onclick="shareOnWhatsApp()">Share on WhatsApp</button>

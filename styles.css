@@ -485,9 +485,32 @@
   .mobile-nav,
   .step-heading,
   .step-hint,
-  .add-product-row,
+  .product-progress,
+  .product-single-form,
   .btn-group-step3 {
     display: none;
+  }
+
+  .product-progress {
+    font-weight: bold;
+    font-size: 15px;
+    color: #111;
+    margin: 0 0 6px;
+  }
+
+  .product-single-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .product-single-form .amount-display {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    font-weight: bold;
+    font-size: 15px;
   }
 
   .form-step {
@@ -701,15 +724,16 @@
       padding: 10px;
     }
 
-    .add-product-row {
+    .product-progress {
       display: block;
-      margin-top: 4px;
     }
 
-    .btn-full-mobile {
-      width: 100%;
-      padding: 14px;
-      font-size: 15px;
+    .product-single-form {
+      display: flex;
+    }
+
+    .desktop-items-table {
+      display: none !important;
     }
 
     .btn-group-step3 {
@@ -832,7 +856,8 @@
       display: none;
     }
 
-    .add-product-row {
+    .product-progress,
+    .product-single-form {
       display: none;
     }
 
@@ -845,4 +870,58 @@
     .form-grid {
       grid-template-columns: repeat(2, 1fr);
     }
+  }
+
+  .pwa-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .pwa-bar[hidden] {
+    display: none !important;
+  }
+
+  .pwa-bar--update {
+    background: #1a3a5c;
+    color: #f4f4f4;
+  }
+
+  .pwa-bar--offline {
+    background: #5c3d1a;
+    color: #f4f4f4;
+  }
+
+  .pwa-bar__btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #f4f4f4;
+    color: #111;
+  }
+
+  .pwa-bar__btn--ghost {
+    background: transparent;
+    color: inherit;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px 10px;
+  }
+
+  .offline-page__message {
+    text-align: center;
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+
+  .offline-page__actions {
+    justify-content: center;
   }

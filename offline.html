@@ -2,19 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=1280, initial-scale=1.0, user-scalable=yes" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <meta name="theme-color" content="#111111" />
-  <title>Offline</title>
+  <title>Offline — Invoice Generator</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-container">
-    <div class="form-section">
+    <div class="form-section offline-page">
       <h2>You're offline</h2>
-      <p style="text-align:center;margin:0;">
-        Please reconnect to the internet and try again.
+      <p class="offline-page__message">
+        This page could not be loaded from the network. If you have opened the app before,
+        try going back to the home screen or use Retry when your connection returns.
       </p>
+      <div class="btn-group offline-page__actions">
+        <button type="button" class="btn-primary" id="offlineRetryBtn">Retry</button>
+      </div>
     </div>
   </div>
+  <script>
+    (function () {
+      var retryBtn = document.getElementById("offlineRetryBtn");
+
+      function tryReload() {
+        if (navigator.onLine) {
+          window.location.href = "./";
+          return;
+        }
+        window.location.reload();
+      }
+
+      if (retryBtn) {
+        retryBtn.addEventListener("click", tryReload);
+      }
+
+      window.addEventListener("online", function () {
+        window.location.href = "./";
+      });
+    })();
+  </script>
 </body>
 </html>

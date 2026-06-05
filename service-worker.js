@@ -1,12 +1,11 @@
 /* PWA Service Worker - Invoice Generator */
 
-var CACHE_VERSION = "v1.0.2";
+var CACHE_VERSION = "v1.1.0";
 var STATIC_CACHE = "static-" + CACHE_VERSION;
 var RUNTIME_CACHE = "runtime-" + CACHE_VERSION;
 
 var OFFLINE_URL = "offline.html";
 
-// Keep these paths relative (no localhost-only URLs)
 var STATIC_ASSETS = [
   "./",
   "index.html",
@@ -15,8 +14,60 @@ var STATIC_ASSETS = [
   "manifest.json",
   OFFLINE_URL,
   "icons/icon-192.png",
-  "icons/icon-512.png"
+  "icons/icon-512.png",
+  "vendor/html2pdf.bundle.min.js"
 ];
+
+var STATIC_URL_PARTS = [
+  "/styles.css",
+  "/script.js",
+  "/manifest.json",
+  "/offline.html",
+  "/icons/",
+  "/vendor/"
+];
+
+function isStaticAssetUrl(pathname) {
+  for (var i = 0; i < STATIC_URL_PARTS.length; i++) {
+    if (pathname.indexOf(STATIC_URL_PARTS[i]) !== -1) {
+      return true;
+    }
+  }
+  return pathname.endsWith("/index.html");
+}
+
+function isNavigationRequest(request) {
+  return request.mode === "navigate" ||
+    (request.method === "GET" &&
+      request.headers.get("accept") &&
+      request.headers.get("accept").indexOf("text/html") !== -1);
+}
+
+function cachePut(cacheName, request, response) {
+  if (request.method !== "GET" || !response || response.status !== 200) {
+    return;
+  }
+  caches.open(cacheName).then(function (cache) {
+    cache.put(request, response);
+  });
+}
+
+function respondCacheFirstWithUpdate(event, cacheName) {
+  event.respondWith(
+    caches.match(event.request).then(function (cached) {
+      var networkPromise = fetch(event.request)
+        .then(function (response) {
+          cachePut(cacheName, event.request, response.clone());
+          return response;
+        })
+        .catch(function () {
+          return cached;
+        });
+
+      return cached || networkPromise;
+    })
+  );
+}
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -25,7 +76,9 @@ self.addEventListener("install", function (event) {
         return cache.addAll(STATIC_ASSETS);
       })
       .then(function () {
-        return self.skipWaiting();
+        if (!self.registration.active) {
+          return self.skipWaiting();
+        }
       })
   );
 });
@@ -50,65 +103,61 @@ self.addEventListener("activate", function (event) {
   );
 });
 
-function isNavigationRequest(request) {
-  return request.mode === "navigate" ||
-    (request.method === "GET" && request.headers.get("accept") && request.headers.get("accept").indexOf("text/html") !== -1);
-}
+self.addEventListener("message", function (event) {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener("fetch", function (event) {
   var request = event.request;
+
+  if (request.method !== "GET") {
+    return;
+  }
+
   var url = new URL(request.url);
 
-  // Only handle same-origin requests
   if (url.origin !== self.location.origin) {
     return;
   }
 
-  // Navigation: network-first with offline fallback
   if (isNavigationRequest(request)) {
     event.respondWith(
       fetch(request)
         .then(function (response) {
-          var copy = response.clone();
-          caches.open(RUNTIME_CACHE).then(function (cache) {
-            cache.put(request, copy);
-          });
+          cachePut(RUNTIME_CACHE, request, response.clone());
           return response;
         })
         .catch(function () {
           return caches.match(request)
             .then(function (cached) {
-              return cached || caches.match(OFFLINE_URL);
+              if (cached) {
+                return cached;
+              }
+              return caches.match("index.html")
+                .then(function (indexCached) {
+                  return indexCached || caches.match(OFFLINE_URL);
+                });
             });
         })
     );
     return;
   }
 
-  // Static assets: cache-first then network
-  event.respondWith(
-    caches.match(request)
-      .then(function (cachedResponse) {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+  if (isStaticAssetUrl(url.pathname)) {
+    respondCacheFirstWithUpdate(event, STATIC_CACHE);
+    return;
+  }
 
-        return fetch(request)
-          .then(function (response) {
-            // Cache successful GET responses
-            if (request.method === "GET" && response && response.status === 200) {
-              var copy = response.clone();
-              caches.open(RUNTIME_CACHE).then(function (cache) {
-                cache.put(request, copy);
-              });
-            }
-            return response;
-          })
-          .catch(function () {
-            // For non-HTML requests, just fail normally if offline
-            return cachedResponse;
-          });
+  event.respondWith(
+    fetch(request)
+      .then(function (response) {
+        cachePut(RUNTIME_CACHE, request, response.clone());
+        return response;
+      })
+      .catch(function () {
+        return caches.match(request);
       })
   );
 });
-

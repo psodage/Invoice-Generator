@@ -15,6 +15,7 @@ var items = [
   var currentStep = 1;
   var totalSteps = 3;
   var mobileWizardActive = false;
+  var currentProductIndex = 0;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -25,17 +26,110 @@ var items = [
       (window.navigator && window.navigator.standalone === true);
   }
 
+  var swRegistration = null;
+
   function registerServiceWorker() {
-    if (!("serviceWorker" in navigator)) {
+    if (!("serviceWorker" in navigator) || !window.isSecureContext) {
       return;
     }
 
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("service-worker.js")
+        .then(function (registration) {
+          swRegistration = registration;
+          listenForServiceWorkerUpdates(registration);
+        })
         .catch(function () {
           // Ignore registration errors to avoid breaking the app
         });
+
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!window._swWaitingForReload) {
+          return;
+        }
+        window.location.reload();
+      });
     });
+  }
+
+  function listenForServiceWorkerUpdates(registration) {
+    function onWaitingWorker(worker) {
+      if (!worker || worker.state !== "installed") {
+        return;
+      }
+      if (!navigator.serviceWorker.controller) {
+        return;
+      }
+      showPwaUpdateBar();
+    }
+
+    if (registration.waiting) {
+      onWaitingWorker(registration.waiting);
+    }
+
+    registration.addEventListener("updatefound", function () {
+      var newWorker = registration.installing;
+      if (!newWorker) {
+        return;
+      }
+      newWorker.addEventListener("statechange", function () {
+        if (newWorker.state === "installed") {
+          onWaitingWorker(newWorker);
+        }
+      });
+    });
+  }
+
+  function showPwaUpdateBar() {
+    var bar = getElement("pwaUpdateBar");
+    if (!bar) {
+      return;
+    }
+    bar.hidden = false;
+  }
+
+  function hidePwaUpdateBar() {
+    var bar = getElement("pwaUpdateBar");
+    if (bar) {
+      bar.hidden = true;
+    }
+  }
+
+  function applyServiceWorkerUpdate() {
+    window._swWaitingForReload = true;
+    var worker = swRegistration && swRegistration.waiting;
+    if (!worker) {
+      window.location.reload();
+      return;
+    }
+    worker.postMessage({ type: "SKIP_WAITING" });
+  }
+
+  function setupPwaUpdateBar() {
+    var updateBtn = getElement("pwaUpdateBtn");
+    var dismissBtn = getElement("pwaUpdateDismiss");
+
+    if (updateBtn) {
+      updateBtn.addEventListener("click", applyServiceWorkerUpdate);
+    }
+    if (dismissBtn) {
+      dismissBtn.addEventListener("click", hidePwaUpdateBar);
+    }
+  }
+
+  function setupOfflineIndicator() {
+    var bar = getElement("pwaOfflineBar");
+    if (!bar) {
+      return;
+    }
+
+    function syncOnlineState() {
+      bar.hidden = navigator.onLine;
+    }
+
+    window.addEventListener("online", syncOnlineState);
+    window.addEventListener("offline", syncOnlineState);
+    syncOnlineState();
   }
 
   function setupInstallPrompt() {
@@ -185,7 +279,174 @@ var items = [
 
     if (nextBtn) {
       nextBtn.style.display = currentStep === totalSteps ? "none" : "block";
+      updateMobileNavLabels();
     }
+  }
+
+  function updateMobileNavLabels() {
+    var nextBtn = getElement("nextStepBtn");
+    var prevBtn = getElement("prevStepBtn");
+
+    if (!nextBtn || !prevBtn) {
+      return;
+    }
+
+    nextBtn.innerText = "Next";
+    prevBtn.innerText = "Back";
+
+    if (currentStep === 2 && mobileWizardActive) {
+      if (currentProductIndex < items.length - 1) {
+        nextBtn.innerText = "Next Product";
+      } else {
+        nextBtn.innerText = "Preview";
+      }
+
+      if (currentProductIndex > 0) {
+        prevBtn.innerText = "Previous";
+      }
+    }
+  }
+
+  function getProductCount() {
+    var countInput = getElement("productCount");
+    var count = parseInt(countInput ? countInput.value : "1", 10);
+
+    if (isNaN(count) || count < 1) {
+      return 1;
+    }
+
+    if (count > 50) {
+      return 50;
+    }
+
+    return count;
+  }
+
+  function syncItemsToProductCount() {
+    var count = getProductCount();
+    var countInput = getElement("productCount");
+
+    if (countInput && countInput.value !== String(count)) {
+      countInput.value = String(count);
+    }
+
+    while (items.length < count) {
+      items.push({
+        productName: "",
+        sac: "",
+        qty: "",
+        rate: ""
+      });
+    }
+
+    while (items.length > count) {
+      items.pop();
+    }
+
+    if (currentProductIndex >= items.length) {
+      currentProductIndex = Math.max(0, items.length - 1);
+    }
+  }
+
+  function updateProductProgress() {
+    var progress = getElement("productProgress");
+
+    if (!progress) {
+      return;
+    }
+
+    progress.innerText = "Product " + (currentProductIndex + 1) + " of " + items.length;
+  }
+
+  function renderMobileProductForm() {
+    var container = getElement("productSingleForm");
+
+    if (!container || !mobileWizardActive) {
+      return;
+    }
+
+    syncItemsToProductCount();
+
+    var item = items[currentProductIndex];
+
+    if (!item) {
+      return;
+    }
+
+    var amount = calculateRowAmount(item);
+    var index = currentProductIndex;
+
+    container.innerHTML =
+      '<div class="form-group">' +
+        '<label for="mobileProductName">Product Name</label>' +
+        '<input type="text" id="mobileProductName" placeholder="Enter product name" value="' + safeText(item.productName) + '" />' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label for="mobileProductSac">SAC</label>' +
+        '<input type="text" id="mobileProductSac" placeholder="Enter SAC" value="' + safeText(item.sac) + '" />' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label for="mobileProductQty">Quantity</label>' +
+        '<input type="number" id="mobileProductQty" min="0" step="1" inputmode="numeric" placeholder="Qty" value="' + safeText(item.qty) + '" />' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label for="mobileProductRate">Rate</label>' +
+        '<input type="number" id="mobileProductRate" min="0" step="0.01" inputmode="decimal" placeholder="Rate" value="' + safeText(item.rate) + '" />' +
+      '</div>' +
+      '<div class="amount-display">Amount: <span id="mobileProductAmount">' + formatAmount(amount) + '</span></div>';
+
+    getElement("mobileProductName").oninput = function () {
+      updateItemField(index, "productName", this.value);
+    };
+
+    getElement("mobileProductSac").oninput = function () {
+      updateItemField(index, "sac", this.value);
+    };
+
+    getElement("mobileProductQty").oninput = function () {
+      updateItemField(index, "qty", this.value);
+    };
+
+    getElement("mobileProductRate").oninput = function () {
+      updateItemField(index, "rate", this.value);
+    };
+
+    updateProductProgress();
+    updateMobileNavLabels();
+  }
+
+  function updateItemField(index, field, value) {
+    if (!items[index]) {
+      return;
+    }
+
+    items[index][field] = value;
+
+    var amountEl = getElement("mobileProductAmount");
+
+    if (amountEl) {
+      amountEl.innerText = formatAmount(calculateRowAmount(items[index]));
+    }
+
+    renderItemInputs();
+    generateInvoice(false);
+  }
+
+  function buildPdfFileName() {
+    var invoiceDate = formatDate(getElement("invoiceDate").value);
+
+    if (!invoiceDate) {
+      var today = new Date();
+      var day = today.getDate();
+      var month = today.getMonth() + 1;
+      invoiceDate = (day < 10 ? "0" + day : String(day)) + "-" +
+        (month < 10 ? "0" + month : String(month)) + "-" +
+        today.getFullYear();
+    } else {
+      invoiceDate = invoiceDate.replace(/\//g, "-");
+    }
+
+    return "SS Engineers " + invoiceDate + ".pdf";
   }
 
   function goToStep(step, scrollToTop) {
@@ -214,6 +475,10 @@ var items = [
       }
     }
 
+    if (mobileWizardActive && currentStep === 2) {
+      renderMobileProductForm();
+    }
+
     updateStepperUI();
 
     if (scrollToTop) {
@@ -221,11 +486,66 @@ var items = [
     }
   }
 
-  function validateStep(step) {
+  function validateStep1() {
     var errorBox = getElement("errorBox");
+    var countInput = getElement("productCount");
+    var count = parseInt(countInput ? countInput.value : "", 10);
+
     errorBox.innerText = "";
 
+    if (isNaN(count) || count < 1) {
+      errorBox.innerText = "Please enter number of products (at least 1).";
+      return false;
+    }
+
+    if (count > 50) {
+      errorBox.innerText = "Maximum 50 products allowed.";
+      return false;
+    }
+
+    return true;
+  }
+
+  function validateCurrentProduct() {
+    var errorBox = getElement("errorBox");
+    var item = items[currentProductIndex];
+
+    errorBox.innerText = "";
+
+    if (!item) {
+      return true;
+    }
+
+    var productLabel = "product " + (currentProductIndex + 1);
+
+    if (String(item.productName).trim() === "") {
+      errorBox.innerText = "Please enter product name for " + productLabel + ".";
+      return false;
+    }
+
+    if (String(item.qty).trim() === "" || parseFloat(item.qty) < 0 || isNaN(parseFloat(item.qty))) {
+      errorBox.innerText = "Please enter valid quantity for " + productLabel + ".";
+      return false;
+    }
+
+    if (String(item.rate).trim() === "" || parseFloat(item.rate) < 0 || isNaN(parseFloat(item.rate))) {
+      errorBox.innerText = "Please enter valid rate for " + productLabel + ".";
+      return false;
+    }
+
+    return true;
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      return validateStep1();
+    }
+
     if (step === 2) {
+      if (mobileWizardActive) {
+        return validateCurrentProduct();
+      }
+
       return validateItems();
     }
 
@@ -241,8 +561,24 @@ var items = [
       return;
     }
 
-    if (currentStep < totalSteps) {
-      goToStep(currentStep + 1);
+    if (currentStep === 1) {
+      syncItemsToProductCount();
+      currentProductIndex = 0;
+      goToStep(2);
+      return;
+    }
+
+    if (currentStep === 2) {
+      if (currentProductIndex < items.length - 1) {
+        currentProductIndex++;
+        renderMobileProductForm();
+        getElement("errorBox").innerText = "";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      goToStep(3);
+      return;
     }
   }
 
@@ -252,7 +588,23 @@ var items = [
     }
 
     getElement("errorBox").innerText = "";
-    goToStep(currentStep - 1);
+
+    if (currentStep === 2 && currentProductIndex > 0) {
+      currentProductIndex--;
+      renderMobileProductForm();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (currentStep === 2) {
+      goToStep(1);
+      return;
+    }
+
+    if (currentStep === 3) {
+      currentProductIndex = Math.max(0, items.length - 1);
+      goToStep(2);
+    }
   }
 
   function safeText(value) {
@@ -403,18 +755,10 @@ var items = [
     var errorBox = getElement("errorBox");
     errorBox.innerText = "";
 
+    syncItemsToProductCount();
+
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-
-      var hasAnyValue =
-        String(item.productName).trim() !== "" ||
-        String(item.sac).trim() !== "" ||
-        String(item.qty).trim() !== "" ||
-        String(item.rate).trim() !== "";
-
-      if (!hasAnyValue) {
-        continue;
-      }
 
       if (String(item.productName).trim() === "") {
         errorBox.innerText = "Please enter product name in row " + (i + 1);
@@ -447,6 +791,8 @@ var items = [
     if (showError === undefined) {
       showError = true;
     }
+
+    syncItemsToProductCount();
 
     var invoiceNo = getElement("invoiceNo").value;
     var invoiceDate = getElement("invoiceDate").value;
@@ -527,21 +873,7 @@ var items = [
     var needsMobileRestore = document.querySelector(".invoice-wrapper.mobile-visible") !== null;
     resetMobileInvoiceScale();
 
-    var invoiceDate = getElement("invoiceDate").value;
-    var invoiceNo = getElement("invoiceNo").value;
-    var formattedDate = formatDate(invoiceDate);
-    var trimmedInvoiceNo = invoiceNo.trim();
-    var titleParts = ["S.S. Engineers Invoice"];
-
-    if (formattedDate) {
-      titleParts.push(formattedDate);
-    }
-
-    if (trimmedInvoiceNo) {
-      titleParts.push(trimmedInvoiceNo);
-    }
-
-    document.title = titleParts.join(" ");
+    document.title = buildPdfFileName().replace(/\.pdf$/i, "");
 
     function restoreMobilePreview() {
       if (needsMobileRestore) {
@@ -603,6 +935,10 @@ var items = [
   }
 
   function generateInvoicePdfBlob(fileName) {
+    if (typeof html2pdf === "undefined") {
+      return Promise.reject(new Error("PDF library not loaded"));
+    }
+
     var exportEl = createPdfExportElement();
 
     return new Promise(function (resolve, reject) {
@@ -635,7 +971,7 @@ var items = [
 
     var invoiceNo = getElement("invoiceNo").value.trim() || "Invoice";
     var invoiceDate = formatDate(getElement("invoiceDate").value) || new Date().toLocaleDateString();
-    var fileName = "S.S.Engineers_Invoice_" + invoiceNo + "_" + invoiceDate.replace(/\//g, "-") + ".pdf";
+    var fileName = buildPdfFileName();
 
     generateInvoicePdfBlob(fileName)
       .then(function (pdfBlob) {
@@ -659,7 +995,11 @@ var items = [
       })
       .catch(function (err) {
         console.error("PDF generation error:", err);
-        showError("Failed to generate PDF. Please try again.");
+        var msg = "Failed to generate PDF. Please try again.";
+        if (!navigator.onLine) {
+          msg = "PDF export needs a cached copy of the app. Open once online, or use Print / Save PDF.";
+        }
+        showError(msg);
       });
   }
 
@@ -780,6 +1120,7 @@ var items = [
 
   window.onload = function () {
     registerServiceWorker();
+    syncItemsToProductCount();
     renderItemInputs();
     generateInvoice(false);
 
@@ -799,7 +1140,19 @@ var items = [
       generateInvoice(false);
     };
 
+    getElement("productCount").oninput = function () {
+      syncItemsToProductCount();
+      renderItemInputs();
+      generateInvoice(false);
+
+      if (mobileWizardActive && currentStep === 2) {
+        renderMobileProductForm();
+      }
+    };
+
     setupInstallPrompt();
+    setupPwaUpdateBar();
+    setupOfflineIndicator();
     updateMobileWizardLayout();
 
     window.addEventListener("resize", function () {
