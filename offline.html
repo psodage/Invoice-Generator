@@ -11,17 +11,16 @@
 <body>
   <div class="app-container">
     <div class="form-section offline-page">
-      <h2>You're offline</h2>
+      <h2>App not cached yet</h2>
       <p id="offlineConnectionStatus" class="offline-page__status" role="status" aria-live="polite">
-        No network connection detected.
+        Checking connection…
       </p>
       <p class="offline-page__message">
-        This page is not in your offline cache yet, or the network request failed.
-        If you have opened the app online before, go to the home page — the invoice
-        form, preview, and print still work from cache.
+        Open the invoice app once while online. After that, the full app works offline —
+        forms, preview, print, and PDF save.
       </p>
       <div class="btn-group offline-page__actions">
-        <button type="button" class="btn-primary" id="offlineHomeBtn">Open app</button>
+        <button type="button" class="btn-primary" id="offlineHomeBtn">Open invoice app</button>
         <button type="button" class="btn-secondary" id="offlineRetryBtn">Retry</button>
       </div>
     </div>
@@ -31,30 +30,68 @@
       var statusEl = document.getElementById("offlineConnectionStatus");
       var homeBtn = document.getElementById("offlineHomeBtn");
       var retryBtn = document.getElementById("offlineRetryBtn");
+      var indexUrl = new URL("index.html", window.location.href).href;
 
       function updateStatus() {
         if (!statusEl) {
           return;
         }
         statusEl.textContent = navigator.onLine
-          ? "Connection restored — redirecting…"
-          : "No network connection detected.";
+          ? "Online — opening app…"
+          : "Offline — open the app once online to enable offline use.";
       }
 
-      function goHome() {
-        window.location.href = "./index.html";
+      function tryOpenCachedApp() {
+        if (!window.caches) {
+          window.location.href = "index.html";
+          return;
+        }
+
+        caches.match(indexUrl).then(function (hit) {
+          if (hit) {
+            window.location.href = "index.html";
+            return;
+          }
+
+          caches.keys().then(function (names) {
+            var i = 0;
+
+            function tryCache() {
+              if (i >= names.length) {
+                window.location.href = "index.html";
+                return;
+              }
+
+              caches.open(names[i]).then(function (cache) {
+                return cache.match(indexUrl);
+              }).then(function (match) {
+                if (match) {
+                  window.location.href = "index.html";
+                } else {
+                  i += 1;
+                  tryCache();
+                }
+              }).catch(function () {
+                i += 1;
+                tryCache();
+              });
+            }
+
+            tryCache();
+          });
+        });
       }
 
       function tryReload() {
         if (navigator.onLine) {
-          goHome();
+          tryOpenCachedApp();
           return;
         }
         window.location.reload();
       }
 
       if (homeBtn) {
-        homeBtn.addEventListener("click", goHome);
+        homeBtn.addEventListener("click", tryOpenCachedApp);
       }
 
       if (retryBtn) {
@@ -63,11 +100,15 @@
 
       window.addEventListener("online", function () {
         updateStatus();
-        setTimeout(goHome, 600);
+        setTimeout(tryOpenCachedApp, 400);
       });
 
       window.addEventListener("offline", updateStatus);
       updateStatus();
+
+      if (navigator.onLine) {
+        tryOpenCachedApp();
+      }
     })();
   </script>
 </body>

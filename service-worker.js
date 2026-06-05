@@ -1,69 +1,34 @@
 /* S.S. Engineers Invoice Generator — Service Worker
- *
- * Caching strategy summary:
- *   • App shell (HTML, CSS, JS, manifest, icons, local vendor libs) — stale-while-revalidate
- *   • Navigation — network-first, fallback to cached index.html, then offline.html
- *   • /api/* — network-first with cache fallback
- *   • Images, fonts, runtime assets — stale-while-revalidate in runtime cache
- *
- * html2pdf.js:
- *   The app loads vendor/html2pdf.bundle.min.js locally (recommended for offline).
- *   CDN copy is also precached when online during install as a backup:
- *   https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js
- *   CDN scripts fail offline unless explicitly cached — local vendor copy is required
- *   for reliable PDF export without network.
+ * Offline: always serves cached index.html + app assets from the install shell.
  */
 
 "use strict";
 
-var CACHE_VERSION = "v2.0.0";
+var CACHE_VERSION = "v2.0.2";
 var STATIC_CACHE = "invoice-static-" + CACHE_VERSION;
 var RUNTIME_CACHE = "invoice-runtime-" + CACHE_VERSION;
 
-var OFFLINE_URL = "offline.html";
-var INDEX_URL = "index.html";
+var INDEX_FILE = "index.html";
+var OFFLINE_FILE = "offline.html";
 
-var HTML2PDF_CDN =
-  "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-
-/* Precached during install (relative to service worker scope) */
-var PRECACHE_ASSETS = [
-  "./",
-  "./" + INDEX_URL,
-  "./styles.css",
-  "./script.js",
-  "./manifest.json",
-  "./" + OFFLINE_URL,
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./vendor/html2pdf.bundle.min.js"
+var SHELL_FILES = [
+  INDEX_FILE,
+  "styles.css",
+  "script.js",
+  "manifest.json",
+  OFFLINE_FILE,
+  "icons/icon-192.png",
+  "icons/icon-512.png",
+  "vendor/html2pdf.bundle.min.js"
 ];
 
-var STATIC_PATH_HINTS = [
-  "/styles.css",
-  "/script.js",
-  "/manifest.json",
-  "/offline.html",
-  "/index.html",
-  "/icons/",
-  "/vendor/"
-];
+function getScopeBase() {
+  return new URL("./", self.location.href).href;
+}
 
-var SWR_PATH_EXTENSIONS = [
-  ".css",
-  ".js",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".webp",
-  ".gif",
-  ".svg",
-  ".ico",
-  ".woff",
-  ".woff2",
-  ".ttf",
-  ".eot"
-];
+function resolveUrl(relativePath) {
+  return new URL(relativePath, getScopeBase()).href;
+}
 
 function isNavigationRequest(request) {
   if (request.mode === "navigate") {
@@ -78,209 +43,259 @@ function isNavigationRequest(request) {
   );
 }
 
-function isApiRequest(pathname) {
-  return pathname.indexOf("/api/") === 0;
-}
+function isShellAsset(pathname) {
+  if (pathname === "/" || pathname.endsWith("/")) {
+    return true;
+  }
 
-function isStaticPath(pathname) {
-  for (var i = 0; i < STATIC_PATH_HINTS.length; i++) {
-    if (pathname.indexOf(STATIC_PATH_HINTS[i]) !== -1) {
+  for (var i = 0; i < SHELL_FILES.length; i++) {
+    var name = SHELL_FILES[i];
+    if (pathname === "/" + name || pathname.endsWith("/" + name)) {
       return true;
     }
   }
-  return pathname === "/" || pathname.endsWith("/");
+
+  return pathname.indexOf("/icons/") !== -1 || pathname.indexOf("/vendor/") !== -1;
 }
 
-function hasSwRExtension(pathname) {
-  var lower = pathname.toLowerCase();
-  for (var j = 0; j < SWR_PATH_EXTENSIONS.length; j++) {
-    if (lower.endsWith(SWR_PATH_EXTENSIONS[j])) {
-      return true;
-    }
+function basenameFromUrl(urlString) {
+  try {
+    var path = new URL(urlString).pathname;
+    var parts = path.split("/");
+    return parts[parts.length - 1] || "";
+  } catch (e) {
+    return "";
   }
-  return false;
 }
 
-function isRuntimeAsset(request, pathname) {
-  var dest = request.destination;
-  return (
-    dest === "style" ||
-    dest === "script" ||
-    dest === "image" ||
-    dest === "font" ||
-    hasSwRExtension(pathname)
-  );
-}
-
-function cachePut(cacheName, request, response) {
-  if (!response || response.status !== 200 || request.method !== "GET") {
+function putResponse(cache, requestOrUrl, response) {
+  if (!response || response.status !== 200) {
     return Promise.resolve();
   }
 
+  return cache.put(requestOrUrl, response);
+}
+
+function storeInCache(cacheName, url, response) {
   return caches.open(cacheName).then(function (cache) {
-    return cache.put(request, response);
+    return putResponse(cache, url, response.clone());
   });
 }
 
-function precacheAsset(cache, url) {
-  return fetch(url, { cache: "reload" })
+function precacheShellFile(cache, relativePath) {
+  var url = resolveUrl(relativePath);
+
+  return fetch(url)
     .then(function (response) {
       if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+        throw new Error("HTTP " + response.status + " for " + url);
       }
-      return cache.put(url, response);
+
+      var jobs = [putResponse(cache, url, response.clone())];
+
+      if (relativePath === INDEX_FILE) {
+        var scope = getScopeBase();
+        jobs.push(putResponse(cache, scope, response.clone()));
+        jobs.push(putResponse(cache, resolveUrl("./"), response.clone()));
+        jobs.push(putResponse(cache, new Request(scope, { mode: "navigate" }), response.clone()));
+      }
+
+      return Promise.all(jobs);
     })
     .catch(function (err) {
-      console.warn("[SW] Precache skipped:", url, err);
+      console.warn("[SW] Shell precache failed:", url, err);
     });
 }
 
-function matchCachedIndex() {
-  return caches.match("./" + INDEX_URL).then(function (hit) {
+function openStaticCache() {
+  return caches.open(STATIC_CACHE);
+}
+
+function openRuntimeCache() {
+  return caches.open(RUNTIME_CACHE);
+}
+
+function matchExact(url) {
+  return caches.match(url).then(function (hit) {
     if (hit) {
       return hit;
     }
-    return caches.match(INDEX_URL);
+
+    return openStaticCache().then(function (cache) {
+      return cache.match(url);
+    });
   });
 }
 
-function matchCachedOffline() {
-  return caches.match("./" + OFFLINE_URL).then(function (hit) {
-    if (hit) {
-      return hit;
-    }
-    return caches.match(OFFLINE_URL);
-  });
-}
+function matchByBasename(urlString) {
+  var base = basenameFromUrl(urlString);
 
-/* Stale-while-revalidate: return cache immediately, refresh in background */
-function staleWhileRevalidate(request, cacheName) {
-  return caches.match(request).then(function (cached) {
-    var networkFetch = fetch(request)
-      .then(function (response) {
-        if (response && response.status === 200) {
-          cachePut(cacheName, request, response.clone());
+  if (!base) {
+    return Promise.resolve(null);
+  }
+
+  function searchCache(cacheName) {
+    return caches.open(cacheName).then(function (cache) {
+      return cache.keys().then(function (keys) {
+        for (var i = 0; i < keys.length; i++) {
+          if (basenameFromUrl(keys[i].url) === base) {
+            return cache.match(keys[i]);
+          }
         }
-        return response;
-      })
-      .catch(function () {
         return null;
       });
-
-    if (cached) {
-      networkFetch.catch(function () {});
-      return cached;
-    }
-
-    return networkFetch.then(function (networkResponse) {
-      if (networkResponse) {
-        return networkResponse;
-      }
-      return caches.match(request);
     });
+  }
+
+  return searchCache(STATIC_CACHE).then(function (hit) {
+    if (hit) {
+      return hit;
+    }
+    return searchCache(RUNTIME_CACHE);
   });
 }
 
-/* Cache-first: offline shell assets */
+function matchAny(urlString) {
+  return matchExact(urlString).then(function (hit) {
+    if (hit) {
+      return hit;
+    }
+    return matchByBasename(urlString);
+  });
+}
+
+function findCachedIndex() {
+  var candidates = [
+    resolveUrl(INDEX_FILE),
+    getScopeBase(),
+    resolveUrl("./"),
+    resolveUrl("./" + INDEX_FILE)
+  ];
+
+  var index = 0;
+
+  function tryCandidate() {
+    if (index >= candidates.length) {
+      return openStaticCache().then(function (cache) {
+        return cache.keys().then(function (keys) {
+          for (var i = 0; i < keys.length; i++) {
+            if (keys[i].url.indexOf(INDEX_FILE) !== -1) {
+              return cache.match(keys[i]);
+            }
+          }
+          return null;
+        });
+      });
+    }
+
+    var url = candidates[index];
+    index += 1;
+
+    return matchExact(url).then(function (hit) {
+      if (hit) {
+        return hit;
+      }
+      return tryCandidate();
+    });
+  }
+
+  return tryCandidate();
+}
+
+function refreshInBackground(request, cacheName) {
+  fetch(request)
+    .then(function (response) {
+      if (response && response.status === 200) {
+        storeInCache(cacheName, request.url, response);
+      }
+    })
+    .catch(function () {});
+}
+
 function cacheFirst(request, cacheName) {
-  return caches.match(request).then(function (cached) {
+  return matchAny(request.url).then(function (cached) {
     if (cached) {
-      staleWhileRevalidate(request, cacheName).catch(function () {});
+      refreshInBackground(request, cacheName);
       return cached;
     }
 
     return fetch(request)
       .then(function (response) {
-        cachePut(cacheName, request, response.clone());
+        if (response && response.status === 200) {
+          return storeInCache(cacheName, request.url, response).then(function () {
+            return response;
+          });
+        }
         return response;
       })
       .catch(function () {
-        return caches.match(request);
+        return matchAny(request.url);
       });
   });
 }
 
-/* Network-first: API and default GET */
-function networkFirst(request, cacheName) {
-  return fetch(request)
-    .then(function (response) {
-      cachePut(cacheName, request, response.clone());
-      return response;
-    })
-    .catch(function () {
-      return caches.match(request);
-    });
-}
-
 function handleNavigation(request) {
-  return fetch(request)
-    .then(function (response) {
-      if (response && response.status === 200) {
-        cachePut(RUNTIME_CACHE, request, response.clone());
-        cachePut(RUNTIME_CACHE, "./" + INDEX_URL, response.clone());
-      }
-      return response;
-    })
-    .catch(function () {
-      return caches.match(request).then(function (cachedNav) {
-        if (cachedNav) {
-          return cachedNav;
+  return findCachedIndex().then(function (cachedIndex) {
+    return fetch(request)
+      .then(function (response) {
+        if (response && response.status === 200) {
+          var jobs = [
+            storeInCache(RUNTIME_CACHE, request.url, response),
+            storeInCache(STATIC_CACHE, resolveUrl(INDEX_FILE), response),
+            storeInCache(STATIC_CACHE, getScopeBase(), response)
+          ];
+          return Promise.all(jobs).then(function () {
+            return response;
+          });
+        }
+        return response;
+      })
+      .catch(function () {
+        if (cachedIndex) {
+          return cachedIndex;
         }
 
-        return matchCachedIndex().then(function (indexCached) {
-          if (indexCached) {
-            return indexCached;
+        return findCachedIndex().then(function (indexHit) {
+          if (indexHit) {
+            return indexHit;
           }
 
-          return matchCachedOffline().then(function (offlineCached) {
-            if (offlineCached) {
-              return offlineCached;
-            }
-
-            return new Response("You are offline.", {
-              status: 503,
-              statusText: "Offline",
-              headers: { "Content-Type": "text/plain; charset=utf-8" }
-            });
-          });
+          return matchAny(resolveUrl(OFFLINE_FILE));
         });
       });
-    });
+  });
 }
-
-/* ---- Lifecycle ---- */
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(function (cache) {
-      var jobs = PRECACHE_ASSETS.map(function (asset) {
-        return precacheAsset(cache, asset);
-      });
-
-      /* Optional: cache CDN html2pdf when online (solution a) */
-      jobs.push(precacheAsset(cache, HTML2PDF_CDN));
-
-      return Promise.all(jobs);
-    }).then(function () {
-      return self.skipWaiting();
-    })
+    openStaticCache()
+      .then(function (cache) {
+        return Promise.all(SHELL_FILES.map(function (file) {
+          return precacheShellFile(cache, file);
+        }));
+      })
+      .then(function () {
+        return self.skipWaiting();
+      })
   );
 });
 
 self.addEventListener("activate", function (event) {
   event.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.map(function (key) {
-          if (key !== STATIC_CACHE && key !== RUNTIME_CACHE) {
-            return caches.delete(key);
-          }
-          return Promise.resolve();
-        })
-      );
-    }).then(function () {
-      return self.clients.claim();
-    })
+    caches.keys()
+      .then(function (keys) {
+        return Promise.all(
+          keys.map(function (key) {
+            if (key !== STATIC_CACHE && key !== RUNTIME_CACHE) {
+              return caches.delete(key);
+            }
+            return Promise.resolve();
+          })
+        );
+      })
+      .then(function () {
+        return self.clients.claim();
+      })
   );
 });
 
@@ -288,9 +303,17 @@ self.addEventListener("message", function (event) {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
-});
 
-/* ---- Fetch ---- */
+  if (event.data && event.data.type === "CACHE_SHELL") {
+    event.waitUntil(
+      openStaticCache().then(function (cache) {
+        return Promise.all(SHELL_FILES.map(function (file) {
+          return precacheShellFile(cache, file);
+        }));
+      })
+    );
+  }
+});
 
 self.addEventListener("fetch", function (event) {
   var request = event.request;
@@ -301,12 +324,6 @@ self.addEventListener("fetch", function (event) {
 
   var url = new URL(request.url);
 
-  /* Cross-origin CDN html2pdf (solution a) */
-  if (url.href === HTML2PDF_CDN) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
-    return;
-  }
-
   if (url.origin !== self.location.origin) {
     return;
   }
@@ -316,20 +333,10 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  if (isApiRequest(url.pathname)) {
-    event.respondWith(networkFirst(request, RUNTIME_CACHE));
+  if (isShellAsset(url.pathname)) {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
 
-  if (isStaticPath(url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
-    return;
-  }
-
-  if (isRuntimeAsset(request, url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request, RUNTIME_CACHE));
-    return;
-  }
-
-  event.respondWith(networkFirst(request, RUNTIME_CACHE));
+  event.respondWith(cacheFirst(request, RUNTIME_CACHE));
 });

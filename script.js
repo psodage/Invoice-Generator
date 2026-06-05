@@ -28,6 +28,7 @@ var items = [
   }
 
   var swRegistration = null;
+  var SW_STATIC_CACHE = "invoice-static-v2.0.2";
 
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator) || !window.isSecureContext) {
@@ -39,9 +40,10 @@ var items = [
         .then(function (registration) {
           swRegistration = registration;
           listenForServiceWorkerUpdates(registration);
+          warmOfflineCache(registration);
         })
-        .catch(function () {
-          // Ignore registration errors to avoid breaking the app
+        .catch(function (err) {
+          console.warn("Service worker registration failed:", err);
         });
 
       navigator.serviceWorker.addEventListener("controllerchange", function () {
@@ -126,6 +128,70 @@ var items = [
     return swRegistration.update().catch(function () {
       return null;
     });
+  }
+
+  function warmOfflineCache(registration) {
+    if (!registration || !window.caches || !navigator.onLine) {
+      return;
+    }
+
+    function cacheLocalAsset(path) {
+      var url = new URL(path, window.location.href).href;
+
+      return fetch(url)
+        .then(function (response) {
+          if (!response.ok) {
+            return;
+          }
+
+          return caches.open(SW_STATIC_CACHE).then(function (cache) {
+            var jobs = [cache.put(url, response.clone())];
+
+            if (path === "index.html") {
+              if (registration.scope) {
+                jobs.push(cache.put(registration.scope, response.clone()));
+              }
+              jobs.push(cache.put(new URL("./", window.location.href).href, response.clone()));
+            }
+
+            return Promise.all(jobs);
+          });
+        })
+        .catch(function () {
+          return null;
+        });
+    }
+
+    function runWarmup() {
+      var assets = [
+        "index.html",
+        "styles.css",
+        "script.js",
+        "manifest.json",
+        "offline.html",
+        "vendor/html2pdf.bundle.min.js",
+        "icons/icon-192.png",
+        "icons/icon-512.png"
+      ];
+
+      return Promise.all(assets.map(cacheLocalAsset)).then(function () {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "CACHE_SHELL" });
+        }
+      });
+    }
+
+    if (registration.active || registration.waiting) {
+      runWarmup();
+    }
+
+    if (registration.installing) {
+      registration.installing.addEventListener("statechange", function () {
+        if (registration.installing && registration.installing.state === "activated") {
+          runWarmup();
+        }
+      });
+    }
   }
 
   function setupOfflineIndicator() {
