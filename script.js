@@ -16,6 +16,7 @@ var items = [
   var totalSteps = 3;
   var mobileWizardActive = false;
   var currentProductIndex = 0;
+  var lastLayoutWidth = window.innerWidth;
 
   function getElement(id) {
     return document.getElementById(id);
@@ -241,6 +242,7 @@ var items = [
   }
 
   function updateMobileWizardLayout() {
+    var wasMobile = mobileWizardActive;
     mobileWizardActive = isMobileWizard();
     var invoiceWrapper = document.querySelector(".invoice-wrapper");
 
@@ -249,11 +251,29 @@ var items = [
         invoiceWrapper.classList.remove("mobile-visible");
       }
       resetMobileInvoiceScale();
-      currentStep = 1;
+
+      if (wasMobile) {
+        currentStep = 1;
+      }
+
       return;
     }
 
-    goToStep(currentStep, false);
+    if (!wasMobile) {
+      goToStep(currentStep, false);
+      return;
+    }
+
+    if (invoiceWrapper) {
+      if (currentStep === totalSteps) {
+        invoiceWrapper.classList.add("mobile-visible");
+      } else {
+        invoiceWrapper.classList.remove("mobile-visible");
+        resetMobileInvoiceScale();
+      }
+    }
+
+    updateStepperUI();
   }
 
   function updateStepperUI() {
@@ -365,6 +385,12 @@ var items = [
       return;
     }
 
+    var activeElement = document.activeElement;
+
+    if (activeElement && container.contains(activeElement)) {
+      return;
+    }
+
     syncItemsToProductCount();
 
     var item = items[currentProductIndex];
@@ -428,7 +454,10 @@ var items = [
       amountEl.innerText = formatAmount(calculateRowAmount(items[index]));
     }
 
-    renderItemInputs();
+    if (!mobileWizardActive) {
+      renderItemInputs();
+    }
+
     generateInvoice(false);
   }
 
@@ -454,6 +483,9 @@ var items = [
       scrollToTop = true;
     }
 
+    var previousStep = currentStep;
+    var previousProductIndex = currentProductIndex;
+
     currentStep = Math.max(1, Math.min(totalSteps, step));
 
     var formSteps = document.querySelectorAll(".form-step");
@@ -476,7 +508,9 @@ var items = [
     }
 
     if (mobileWizardActive && currentStep === 2) {
-      renderMobileProductForm();
+      if (previousStep !== 2 || previousProductIndex !== currentProductIndex) {
+        renderMobileProductForm();
+      }
     }
 
     updateStepperUI();
@@ -570,6 +604,10 @@ var items = [
 
     if (currentStep === 2) {
       if (currentProductIndex < items.length - 1) {
+        if (document.activeElement && document.activeElement.blur) {
+          document.activeElement.blur();
+        }
+
         currentProductIndex++;
         renderMobileProductForm();
         getElement("errorBox").innerText = "";
@@ -590,6 +628,10 @@ var items = [
     getElement("errorBox").innerText = "";
 
     if (currentStep === 2 && currentProductIndex > 0) {
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+
       currentProductIndex--;
       renderMobileProductForm();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -858,7 +900,7 @@ var items = [
     getElement("beforeTax").innerText = formatAmount(total);
     getElement("amountWords").innerText = numberToWords(total) + " only.";
 
-    if (isMobileWizard()) {
+    if (mobileWizardActive && currentStep === totalSteps) {
       setTimeout(updateMobileInvoiceScale, 50);
     }
   }
@@ -1156,6 +1198,14 @@ var items = [
     updateMobileWizardLayout();
 
     window.addEventListener("resize", function () {
+      var currentWidth = window.innerWidth;
+
+      // Mobile keyboard open/close changes height only — ignore those resizes
+      if (currentWidth === lastLayoutWidth) {
+        return;
+      }
+
+      lastLayoutWidth = currentWidth;
       updateMobileWizardLayout();
       updateMobileInvoiceScale();
     });
