@@ -1079,9 +1079,60 @@ var items = [
     }
   }
 
+  var PDF_PAGE_WIDTH_PX = 794;
+  var PDF_PAGE_PADDING_PX = 30;
+
   function prepareInvoiceForExport() {
     resetMobileInvoiceScale();
     generateInvoice(false);
+  }
+
+  function applyPdfExportInlineStyles(root, page) {
+    if (root) {
+      root.style.position = "fixed";
+      root.style.left = "0";
+      root.style.top = "0";
+      root.style.width = PDF_PAGE_WIDTH_PX + "px";
+      root.style.opacity = "0";
+      root.style.pointerEvents = "none";
+      root.style.zIndex = "-1";
+      root.style.overflow = "visible";
+      root.style.background = "#ffffff";
+    }
+
+    if (page) {
+      page.style.width = PDF_PAGE_WIDTH_PX + "px";
+      page.style.minWidth = PDF_PAGE_WIDTH_PX + "px";
+      page.style.maxWidth = PDF_PAGE_WIDTH_PX + "px";
+      page.style.padding = PDF_PAGE_PADDING_PX + "px";
+      page.style.margin = "0";
+      page.style.boxSizing = "border-box";
+      page.style.background = "#ffffff";
+      page.style.transform = "none";
+      page.style.position = "static";
+      page.style.boxShadow = "none";
+      page.style.fontSize = "14px";
+      page.style.color = "#111111";
+    }
+  }
+
+  function applyPdfLayoutOnClone(clonedDoc) {
+    if (!clonedDoc) {
+      return;
+    }
+
+    var page = clonedDoc.querySelector(".pdf-export-root .invoice-page") ||
+      clonedDoc.querySelector(".invoice-page");
+    var root = clonedDoc.querySelector(".pdf-export-root");
+
+    applyPdfExportInlineStyles(root, page);
+
+    if (root) {
+      root.style.opacity = "1";
+      root.style.position = "static";
+      root.style.left = "auto";
+      root.style.top = "auto";
+    }
   }
 
   function printInvoice() {
@@ -1123,6 +1174,7 @@ var items = [
     page.removeAttribute("id");
     page.removeAttribute("style");
     root.appendChild(page);
+    applyPdfExportInlineStyles(root, page);
     document.body.appendChild(root);
 
     return { root: root, page: page };
@@ -1147,8 +1199,7 @@ var items = [
         scrollX: 0,
         scrollY: 0,
         backgroundColor: "#ffffff",
-        width: 794,
-        windowWidth: 794
+        onclone: applyPdfLayoutOnClone
       },
       jsPDF: {
         unit: "mm",
@@ -1168,6 +1219,8 @@ var items = [
     var needsMobileRestore = document.querySelector(".invoice-wrapper.mobile-visible") !== null;
     var exportEl = createPdfExportElement();
 
+    var captureDelay = navigator.onLine ? 200 : 450;
+
     return new Promise(function (resolve, reject) {
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
@@ -1180,18 +1233,18 @@ var items = [
               .then(function (blob) {
                 destroyPdfExportElement(exportEl);
                 if (needsMobileRestore) {
-                  updateMobileInvoiceScale();
+                  setTimeout(updateMobileInvoiceScale, 50);
                 }
                 resolve(blob);
               })
               .catch(function (err) {
                 destroyPdfExportElement(exportEl);
                 if (needsMobileRestore) {
-                  updateMobileInvoiceScale();
+                  setTimeout(updateMobileInvoiceScale, 50);
                 }
                 reject(err);
               });
-          }, 100);
+          }, captureDelay);
         });
       });
     });

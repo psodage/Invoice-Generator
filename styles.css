@@ -447,22 +447,26 @@
     }
   }
 
-  /* PDF export (WhatsApp share) — match @media print layout, not on-screen preview */
+  /* PDF export (WhatsApp share) — pixel A4 for reliable html2canvas (incl. mobile offline) */
   .pdf-export-root {
     position: fixed;
-    left: -10000px;
+    left: 0;
     top: 0;
-    width: 210mm;
+    width: 794px;
     background: #fff;
     z-index: -1;
+    opacity: 0;
+    pointer-events: none;
+    overflow: visible;
   }
 
   .pdf-export-root .invoice-page {
-    width: 210mm;
-    min-width: 210mm;
-    max-width: 210mm;
-    padding: 8mm;
+    width: 794px;
+    min-width: 794px;
+    max-width: 794px;
+    padding: 30px;
     margin: 0;
+    box-sizing: border-box;
     box-shadow: none;
     background: #fff;
     font-size: 14px;
